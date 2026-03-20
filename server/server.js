@@ -5,84 +5,100 @@ import admin from "firebase-admin";
 const app = express();
 app.use(express.json());
 
-// 🔥 Firebase init
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
 
 const db = admin.firestore();
-
-// 🔥 ENV
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
-// ----------------------------
-// ✅ Telegram webhook
-// ----------------------------
-app.post("/telegram-webhook", async (req, res) => {
-  const msg = req.body.message;
-  if (!msg) return res.sendStatus(200);
-
-  const chatId = msg.chat.id;
-  const text = msg.text || "";
-
-  // 👇 รับ start param
-  if (text.startsWith("/start caregiver_")) {
-    const uid = text.replace("/start caregiver_", "");
-
-    await db.collection("users").doc(uid).update({
-      telegramChatId: chatId,
-    });
-
-    await sendMessage(chatId, "✅ เชื่อม Telegram สำเร็จแล้ว");
-  }
-
-  res.sendStatus(200);
+app.get("/", (_req, res) => {
+  res.status(200).send("OK");
 });
 
-// ----------------------------
-// ✅ ส่งข้อความ
-// ----------------------------
+app.post("/telegram-webhook", async (req, res) => {
+  try {
+    const msg = req.body.message;
+    if (!msg) return res.sendStatus(200);
+
+    const chatId = msg.chat.id;
+    const text = msg.text || "";
+
+    if (text.startsWith("/start caregiver_")) {
+      const uid = text.replace("/start caregiver_", "").trim();
+
+      await db.collection("users").doc(uid).set(
+        {
+          telegramChatId: chatId,
+          telegramConnected: true,
+          telegramConnectedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      await sendMessage(chatId, "✅ เชื่อม Telegram สำเร็จแล้ว");
+    }
+
+    return res.sendStatus(200);
+  } catch (error) {
+    console.error("telegram-webhook error", error);
+    return res.sendStatus(200);
+  }
+});
+
 async function sendMessage(chatId, text) {
-  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+  const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       chat_id: chatId,
       text,
+      disable_web_page_preview: false,
     }),
   });
+
+  const data = await response.json();
+  if (!response.ok || !data.ok) {
+    throw new Error(`Telegram sendMessage failed: ${JSON.stringify(data)}`);
+  }
 }
 
-// ----------------------------
-// ✅ API สำหรับส่งแจ้งเตือน
-// ----------------------------
 app.post("/send-alert", async (req, res) => {
-  const { uid, lat, lng, type } = req.body;
+  try {
+    const { uid, lat, lng, type, title, body } = req.body;
 
-  const user = await db.collection("users").doc(uid).get();
-  const data = user.data();
+    if (!uid || lat == null || lng == null) {
+      return res.status(400).json({ ok: false, error: "missing uid/lat/lng" });
+    }
 
-  const chatId = data.telegramChatId;
-  if (!chatId) return res.status(400).send("No chatId");
+    const userSnap = await db.collection("users").doc(uid).get();
+    if (!userSnap.exists) {
+      return res.status(404).json({ ok: false, error: "caregiver not found" });
+    }
 
-  const mapLink = `https://maps.google.com/?q=${lat},${lng}`;
+    const data = userSnap.data() || {};
+    const chatId = data.telegramChatId;
+    const connected = data.telegramConnected === true;
 
-  let text = "";
+    if (!chatId || !connected) {
+      return res.status(400).json({ ok: false, error: "telegram not connected" });
+    }
 
-  if (type === "SOS") {
-    text = `🚨 SOS ALERT\n📍 ${mapLink}`;
-  } else {
-    text = `📍 Location Update\n${mapLink}`;
+    const mapLink = `https://maps.google.com/?q=${lat},${lng}`;
+    const lines = [title || "แจ้งเตือน", body || "", `📍 ${mapLink}`].filter(Boolean);
+    const message = lines.join("\n");
+
+    await sendMessage(chatId, message);
+
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error("send-alert error", error);
+    return res.status(500).json({ ok: false, error: error.message || "send failed" });
   }
-
-  await sendMessage(chatId, text);
-
-  res.send("OK");
 });
 
-// ----------------------------
-app.listen(3000, () => {
-  console.log("Server running...");
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
