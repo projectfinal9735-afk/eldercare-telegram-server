@@ -6,10 +6,7 @@ const app = express();
 app.use(express.json());
 
 // 🔥 Firebase init
-import fs from "fs";
-const serviceAccount = JSON.parse(
-  fs.readFileSync("./serviceAccountKey.json", "utf8")
-);
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
