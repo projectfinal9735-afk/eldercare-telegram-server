@@ -4,17 +4,20 @@ import admin from "firebase-admin";
 const app = express();
 app.use(express.json());
 
-// 🔥 ใช้ ENV (สำคัญมาก)
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+}
 
-// 🔥 webhook จาก Telegram
+const db = admin.firestore();
+const PORT = process.env.PORT || 3000;
+
 app.post("/telegram-webhook", async (req, res) => {
   try {
-    const message = req.body.message;
+    const message = req.body?.message;
 
     if (!message || !message.text) {
       return res.sendStatus(200);
@@ -39,7 +42,7 @@ app.post("/telegram-webhook", async (req, res) => {
 
     const caregiverUid = payload.replace("caregiver_", "").trim();
 
-    await admin.firestore().collection("users").doc(caregiverUid).set(
+    await db.collection("users").doc(caregiverUid).set(
       {
         telegramChatId: chatId,
         telegramConnected: true,
@@ -56,28 +59,100 @@ app.post("/telegram-webhook", async (req, res) => {
   }
 });
 
+app.post("/send-alert", async (req, res) => {
+  try {
+    const {
+      elderId,
+      elderName,
+      caregiverIds = [],
+      type = "alert",
+      title = "แจ้งเตือน",
+      body = "",
+      lat,
+      lng,
+    } = req.body || {};
 
-// 🔥 ฟังก์ชันส่งข้อความกลับ
+    console.log("send-alert payload:", req.body);
+
+    if (!Array.isArray(caregiverIds) || caregiverIds.length === 0) {
+      return res.status(400).json({ ok: false, error: "caregiverIds required" });
+    }
+
+    const mapsUrl =
+      lat != null && lng != null
+        ? `https://maps.google.com/?q=${lat},${lng}`
+        : null;
+
+    const text = [
+      `🔔 ${title}`,
+      elderName ? `ผู้สูงอายุ: ${elderName}` : null,
+      elderId ? `รหัส: ${elderId}` : null,
+      type ? `ประเภท: ${type}` : null,
+      body || null,
+      mapsUrl ? `📍 ตำแหน่ง: ${mapsUrl}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const caregiverDocs = await Promise.all(
+      caregiverIds.map((id) => db.collection("users").doc(id).get())
+    );
+
+    let sent = 0;
+    const skipped = [];
+
+    for (const doc of caregiverDocs) {
+      if (!doc.exists) {
+        skipped.push({ caregiverId: doc.id, reason: "not_found" });
+        continue;
+      }
+
+      const data = doc.data() || {};
+      const chatId = data.telegramChatId;
+      const connected = data.telegramConnected === true;
+
+      if (!chatId || !connected) {
+        skipped.push({ caregiverId: doc.id, reason: "telegram_not_connected" });
+        continue;
+      }
+
+      await sendMessage(String(chatId), text);
+      sent += 1;
+    }
+
+    return res.json({ ok: true, sent, skipped });
+  } catch (error) {
+    console.error("send-alert error:", error);
+    return res.status(500).json({ ok: false, error: error?.message || "send-alert failed" });
+  }
+});
+
 async function sendMessage(chatId, text) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
 
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+  const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      chat_id: chatId,
-      text: text,
+      chat_id: String(chatId),
+      text,
     }),
   });
+
+  const data = await resp.json();
+  if (!resp.ok || !data.ok) {
+    throw new Error(`Telegram send failed: ${JSON.stringify(data)}`);
+  }
+  return data;
 }
 
-// 🔥 test route
-app.get("/", (req, res) => {
+app.get("/", (_req, res) => {
   res.send("Server is running 🚀");
 });
-app.get("/test-send", async (req, res) => {
+
+app.get("/test-send", async (_req, res) => {
   try {
     const chatId = "8589444452";
     await sendMessage(chatId, "🔥 test แจ้งเตือนสำเร็จ");
@@ -87,8 +162,7 @@ app.get("/test-send", async (req, res) => {
     res.status(500).send("error");
   }
 });
-// 🔥 PORT (Render ใช้ตรงนี้)
-const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
