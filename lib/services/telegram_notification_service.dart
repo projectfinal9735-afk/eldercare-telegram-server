@@ -20,69 +20,38 @@ class TelegramNotificationService {
     required LatLng point,
     Map<String, dynamic>? extra,
   }) async {
-    final elderUid = FirebaseAuth.instance.currentUser?.uid;
-    if (elderUid == null) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
 
-    final elderSnap = await _db.collection('users').doc(elderUid).get();
+    final elderSnap = await _db.collection('users').doc(uid).get();
     final elderData = elderSnap.data() ?? <String, dynamic>{};
-    final caregiverIds = (elderData['caregiverIds'] as List<dynamic>? ?? const [])
+    final caregiverIds = (elderData['caregiverIds'] as List<dynamic>? ?? const <dynamic>[])
         .map((e) => e.toString())
         .where((e) => e.isNotEmpty)
-        .toSet()
         .toList();
 
-    if (caregiverIds.isEmpty) {
-      throw Exception('ยังไม่มีผู้ดูแลที่เชื่อมไว้');
-    }
+    if (caregiverIds.isEmpty) return;
 
-    final futures = caregiverIds.map(
-      (caregiverUid) => _sendAlert(
-        caregiverUid: caregiverUid,
-        elderUid: elderUid,
-        type: type,
-        title: title,
-        body: body,
-        point: point,
-        extra: extra,
-      ),
+    final payload = <String, dynamic>{
+      'elderId': uid,
+      'elderName': (elderData['fullName'] ?? '').toString(),
+      'caregiverIds': caregiverIds,
+      'type': type,
+      'title': title,
+      'body': body,
+      'lat': point.latitude,
+      'lng': point.longitude,
+      'extra': extra ?? <String, dynamic>{},
+    };
+
+    final response = await http.post(
+      Uri.parse('$_baseUrl/send-alert'),
+      headers: const {'Content-Type': 'application/json'},
+      body: jsonEncode(payload),
     );
 
-    final results = await Future.wait(futures, eagerError: false);
-    final successCount = results.where((ok) => ok).length;
-
-    if (successCount == 0) {
-      throw Exception('ส่ง Telegram ไม่สำเร็จ');
-    }
-  }
-
-  Future<bool> _sendAlert({
-    required String caregiverUid,
-    required String elderUid,
-    required String type,
-    required String title,
-    required String body,
-    required LatLng point,
-    Map<String, dynamic>? extra,
-  }) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/send-alert'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'uid': caregiverUid,
-          'elderUid': elderUid,
-          'type': type,
-          'title': title,
-          'body': body,
-          'lat': point.latitude,
-          'lng': point.longitude,
-          'extra': extra ?? <String, dynamic>{},
-        }),
-      );
-
-      return response.statusCode >= 200 && response.statusCode < 300;
-    } catch (_) {
-      return false;
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Telegram alert failed: ${response.statusCode} ${response.body}');
     }
   }
 }
