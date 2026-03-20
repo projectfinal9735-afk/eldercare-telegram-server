@@ -1,0 +1,28 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "eldercareapp-22ad3",
+          "appId": "1:816085659928:android:673980070ce20299ed6e6d",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "eldercareapp-22ad3",
+          "configurations": {
+            "android": "1:816085659928:android:673980070ce20299ed6e6d",
+            "ios": "1:816085659928:ios:e9b9d0282511c4f3ed6e6d",
+            "macos": "1:816085659928:ios:e9b9d0282511c4f3ed6e6d",
+            "web": "1:816085659928:web:68cc744483a2e563ed6e6d",
+            "windows": "1:816085659928:web:d55dfe8bb743d851ed6e6d"
+          }
+        }
+      }
+    }
+  },
+  "functions": {
+    "source": "functions"
+  }
+}

@@ -1,0 +1,151 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function userDoc(uid) {
+      return get(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function myUserDoc() {
+      return userDoc(request.auth.uid);
+    }
+
+    function myRole() {
+      return signedIn() ? (myUserDoc().data.role ?? '') : '';
+    }
+
+    function requestDoc(elderId, caregiverId) {
+      return get(/databases/$(database)/documents/caregiver_requests/$(elderId + '_' + caregiverId));
+    }
+
+    function hasAcceptedRelationship(elderId, caregiverId) {
+      return requestDoc(elderId, caregiverId).data.status == 'accepted';
+    }
+
+    function isOwnProfileWrite(uid) {
+      return isSelf(uid)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'identifier',
+          'fullName',
+          'phone',
+          'updatedAt',
+          'caregiverIds',
+          'elderIds'
+        ]);
+    }
+
+    function caregiverCanLinkElder(uid) {
+      return signedIn()
+        && myRole() == 'caregiver'
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['caregiverIds', 'updatedAt'])
+        && ((('caregiverIds' in resource.data) && resource.data.caregiverIds.hasAny([request.auth.uid])) ||
+            (('caregiverIds' in request.resource.data) && request.resource.data.caregiverIds.hasAny([request.auth.uid])));
+    }
+
+    match /users/{uid} {
+      allow create: if isSelf(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.role in ['elder', 'caregiver'];
+
+      // รองรับการค้นหา caregiver ด้วย identifier และการอ่านความสัมพันธ์ในแอป
+      allow get, list: if signedIn();
+
+      allow update: if isOwnProfileWrite(uid) || caregiverCanLinkElder(uid);
+      allow delete: if false;
+    }
+
+    match /caregiver_requests/{requestId} {
+      allow read: if signedIn() && (
+        resource.data.elderId == request.auth.uid ||
+        resource.data.caregiverId == request.auth.uid
+      );
+
+      allow create: if signedIn()
+        && request.resource.data.elderId == request.auth.uid
+        && myRole() == 'elder'
+        && request.resource.data.caregiverId is string
+        && request.resource.data.status == 'pending';
+
+      allow update: if signedIn() && (
+        // elder ยกเลิก/ส่งซ้ำได้เฉพาะคำขอของตัวเอง
+        (
+          resource.data.elderId == request.auth.uid &&
+          request.resource.data.elderId == resource.data.elderId &&
+          request.resource.data.caregiverId == resource.data.caregiverId &&
+          request.resource.data.status in ['pending', 'canceled']
+        ) ||
+        // caregiver ตอบรับ/ปฏิเสธได้เฉพาะคำขอที่ส่งมาถึงตัวเอง
+        (
+          resource.data.caregiverId == request.auth.uid &&
+          request.resource.data.elderId == resource.data.elderId &&
+          request.resource.data.caregiverId == resource.data.caregiverId &&
+          request.resource.data.status in ['accepted', 'rejected', 'canceled']
+        )
+      );
+
+      allow delete: if false;
+    }
+
+    match /sos_requests/{sosId} {
+      allow create: if signedIn()
+        && myRole() == 'elder'
+        && request.resource.data.elderId == request.auth.uid
+        && request.resource.data.lat is number
+        && request.resource.data.lng is number;
+
+      allow read: if signedIn() && (
+        resource.data.elderId == request.auth.uid ||
+        hasAcceptedRelationship(resource.data.elderId, request.auth.uid)
+      );
+
+      allow update, delete: if false;
+    }
+
+    match /live_locations/{elderId} {
+      allow create, update: if isSelf(elderId)
+        && myRole() == 'elder'
+        && request.resource.data.elderId == request.auth.uid;
+
+      allow read: if signedIn() && (
+        elderId == request.auth.uid ||
+        hasAcceptedRelationship(elderId, request.auth.uid)
+      );
+
+      allow delete: if false;
+    }
+
+    match /users/{uid}/location_history/{historyId} {
+      allow create: if isSelf(uid);
+      allow read: if signedIn() && (
+        uid == request.auth.uid ||
+        hasAcceptedRelationship(uid, request.auth.uid)
+      );
+      allow update, delete: if false;
+    }
+
+    match /telegram_notifications/{notificationId} {
+      allow create: if signedIn()
+        && myRole() == 'elder'
+        && request.resource.data.elderId == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.body is string
+        && request.resource.data.lat is number
+        && request.resource.data.lng is number;
+
+      allow read: if signedIn() && resource.data.elderId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+  }
+}
