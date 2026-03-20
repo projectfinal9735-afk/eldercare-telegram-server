@@ -1,17 +1,21 @@
 import express from "express";
-import fetch from "node-fetch";
+import cors from "cors";
 import admin from "firebase-admin";
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+}
 
 const db = admin.firestore();
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const PORT = process.env.PORT || 3000;
 
 app.get("/", (_req, res) => {
@@ -20,98 +24,146 @@ app.get("/", (_req, res) => {
 
 app.post("/telegram-webhook", async (req, res) => {
   try {
-    const msg = req.body.message;
-    if (!msg) return res.sendStatus(200);
+    const message = req.body?.message;
+    const text = message?.text || "";
+    const chatId = message?.chat?.id;
 
-    const chatId = msg.chat.id;
-    const text = msg.text || "";
-
-    if (text.startsWith("/start caregiver_")) {
-      const uid = text.replace("/start caregiver_", "").trim();
-
-      await db.collection("users").doc(uid).set(
-        {
-          telegramChatId: chatId,
-          telegramConnected: true,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      await sendMessage(
-        chatId,
-        "✅ เชื่อม Telegram สำเร็จแล้ว\nจากนี้ระบบจะส่งแจ้งเตือนมาที่แชตนี้"
-      );
+    if (!chatId || !text.startsWith("/start")) {
+      return res.sendStatus(200);
     }
+
+    const parts = text.trim().split(" ");
+    const payload = parts[1] || "";
+
+    if (!payload.startsWith("caregiver_")) {
+      await sendTelegramMessage(chatId, "เชื่อมต่อสำเร็จแล้ว");
+      return res.sendStatus(200);
+    }
+
+    const caregiverUid = payload.replace("caregiver_", "").trim();
+    if (!caregiverUid) {
+      await sendTelegramMessage(chatId, "ไม่พบ caregiver uid");
+      return res.sendStatus(200);
+    }
+
+    await db.collection("users").doc(caregiverUid).set(
+      {
+        telegramChatId: String(chatId),
+        telegramConnected: true,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    await sendTelegramMessage(
+      chatId,
+      "เชื่อม Telegram สำเร็จแล้ว คุณจะได้รับการแจ้งเตือนจากระบบ"
+    );
 
     return res.sendStatus(200);
   } catch (error) {
-    console.error("telegram-webhook error", error);
-    return res.sendStatus(200);
+    console.error("telegram-webhook error:", error);
+    return res.sendStatus(500);
   }
 });
 
-async function sendMessage(chatId, text) {
-  const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      disable_web_page_preview: true,
-    }),
-  });
-
-  const data = await response.json();
-  if (!response.ok || !data.ok) {
-    throw new Error(`Telegram sendMessage failed: ${response.status} ${JSON.stringify(data)}`);
-  }
-}
-
 app.post("/send-alert", async (req, res) => {
   try {
-    const { elderId, elderName, caregiverIds, type, title, body, lat, lng } = req.body;
+    const {
+      elderId,
+      elderName,
+      caregiverIds = [],
+      type = "alert",
+      title = "แจ้งเตือน",
+      body = "",
+      lat,
+      lng,
+    } = req.body || {};
 
-    if (!elderId || lat == null || lng == null) {
-      return res.status(400).json({ error: "elderId, lat, lng required" });
+    if (!Array.isArray(caregiverIds) || caregiverIds.length === 0) {
+      return res.status(400).json({ ok: false, error: "caregiverIds required" });
     }
 
-    const ids = Array.isArray(caregiverIds) ? caregiverIds.filter(Boolean) : [];
-    if (ids.length === 0) {
-      return res.status(400).json({ error: "caregiverIds required" });
-    }
+    const mapsUrl =
+      lat != null && lng != null
+        ? `https://maps.google.com/?q=${lat},${lng}`
+        : null;
 
-    const mapLink = `https://maps.google.com/?q=${lat},${lng}`;
-    const lines = [title || "แจ้งเตือน", body || "", `📍 ${mapLink}`].filter(Boolean);
-    if (type) lines.unshift(`ประเภท: ${type}`);
-    if (elderName) lines.unshift(`ผู้สูงอายุ: ${elderName}`);
-    const message = lines.join("\n");
+    const messageLines = [
+      `🔔 ${title}`,
+      elderName ? `ผู้สูงอายุ: ${elderName}` : null,
+      elderId ? `รหัส: ${elderId}` : null,
+      type ? `ประเภท: ${type}` : null,
+      body || null,
+      mapsUrl ? `📍 ตำแหน่ง: ${mapsUrl}` : null,
+    ].filter(Boolean);
 
-    const docs = await Promise.all(ids.map((id) => db.collection("users").doc(id).get()));
+    const text = messageLines.join("\n");
+
+    const caregiverDocs = await Promise.all(
+      caregiverIds.map((id) => db.collection("users").doc(id).get())
+    );
 
     let sent = 0;
     const skipped = [];
 
-    for (const doc of docs) {
+    for (const doc of caregiverDocs) {
+      if (!doc.exists) {
+        skipped.push({ caregiverId: doc.id, reason: "not_found" });
+        continue;
+      }
+
       const data = doc.data() || {};
       const chatId = data.telegramChatId;
       const connected = data.telegramConnected === true;
 
       if (!chatId || !connected) {
-        skipped.push(doc.id);
+        skipped.push({
+          caregiverId: doc.id,
+          reason: "telegram_not_connected",
+        });
         continue;
       }
 
-      await sendMessage(chatId, message);
+      await sendTelegramMessage(chatId, text);
       sent += 1;
     }
 
-    return res.status(200).json({ ok: true, sent, skipped });
+    return res.json({
+      ok: true,
+      sent,
+      skipped,
+    });
   } catch (error) {
-    console.error("send-alert error", error);
-    return res.status(500).json({ error: error.message || String(error) });
+    console.error("send-alert error:", error?.response?.data || error);
+    return res.status(500).json({
+      ok: false,
+      error: error?.message || "send-alert failed",
+    });
   }
 });
+
+async function sendTelegramMessage(chatId, text) {
+  const resp = await fetch(
+    `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        chat_id: String(chatId),
+        text,
+      }),
+    }
+  );
+
+  const data = await resp.json();
+  if (!resp.ok || !data.ok) {
+    throw new Error(`Telegram send failed: ${JSON.stringify(data)}`);
+  }
+  return data;
+}
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
