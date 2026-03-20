@@ -56,16 +56,6 @@ app.post("/telegram-webhook", async (req, res) => {
   }
 });
 
-app.get("/test-send", async (req, res) => {
-  try {
-    const chatId = "8589444452"; // ของคุณ
-    await sendMessage(chatId, "🔥 test แจ้งเตือนสำเร็จ");
-    res.send("sent");
-  } catch (e) {
-    console.error(e);
-    res.send("error");
-  }
-});
 
 // 🔥 ฟังก์ชันส่งข้อความกลับ
 async function sendMessage(chatId, text) {
@@ -87,7 +77,16 @@ async function sendMessage(chatId, text) {
 app.get("/", (req, res) => {
   res.send("Server is running 🚀");
 });
-
+app.get("/test-send", async (req, res) => {
+  try {
+    const chatId = "8589444452";
+    await sendMessage(chatId, "🔥 test แจ้งเตือนสำเร็จ");
+    res.send("sent");
+  } catch (e) {
+    console.error("test-send error:", e);
+    res.status(500).send("error");
+  }
+});
 // 🔥 PORT (Render ใช้ตรงนี้)
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
