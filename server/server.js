@@ -20,20 +20,39 @@ app.post("/telegram-webhook", async (req, res) => {
       return res.sendStatus(200);
     }
 
-    const chatId = message.chat.id;
-    const text = message.text;
+    const chatId = String(message.chat.id);
+    const text = message.text.trim();
 
     console.log("Received:", text);
 
-    // ตัวอย่าง: พิมพ์ /start
-    if (text === "/start") {
-      await sendMessage(chatId, "เชื่อมต่อสำเร็จแล้ว ✅");
+    if (!text.startsWith("/start")) {
+      return res.sendStatus(200);
     }
 
-    res.sendStatus(200);
+    const parts = text.split(" ");
+    const payload = parts[1] || "";
+
+    if (!payload.startsWith("caregiver_")) {
+      await sendMessage(chatId, "เชื่อมต่อสำเร็จแล้ว ✅");
+      return res.sendStatus(200);
+    }
+
+    const caregiverUid = payload.replace("caregiver_", "").trim();
+
+    await admin.firestore().collection("users").doc(caregiverUid).set(
+      {
+        telegramChatId: chatId,
+        telegramConnected: true,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    await sendMessage(chatId, "เชื่อม Telegram สำเร็จแล้ว ✅");
+    return res.sendStatus(200);
   } catch (error) {
-    console.error(error);
-    res.sendStatus(500);
+    console.error("telegram-webhook error:", error);
+    return res.sendStatus(500);
   }
 });
 
