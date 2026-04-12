@@ -45,8 +45,9 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = "0.0.0.0";
-const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
+const LINE_CHANNEL_ACCESS_TOKEN = String(process.env.LINE_CHANNEL_ACCESS_TOKEN || "").trim();
+const LINE_CHANNEL_SECRET = String(process.env.LINE_CHANNEL_SECRET || "").trim();
+const LINE_REPLY_FALLBACK_TO_PUSH = String(process.env.LINE_REPLY_FALLBACK_TO_PUSH || "true").trim().toLowerCase() !== "false";
 
 app.get("/", (_req, res) => {
   res.status(200).send("LINE server is running");
@@ -59,10 +60,12 @@ app.get("/health", (_req, res) => {
 app.post("/line-webhook", async (req, res) => {
   try {
     if (!verifyLineSignature(req)) {
+      console.error("line-webhook error: invalid signature");
       return res.status(401).send("invalid signature");
     }
 
     const events = Array.isArray(req.body?.events) ? req.body.events : [];
+    console.log(`LINE webhook received ${events.length} event(s)`);
 
     for (const event of events) {
       if (event.type === "follow") {
@@ -112,7 +115,7 @@ app.post("/line-webhook", async (req, res) => {
       const caregiverRef = db.collection("users").doc(caregiverUid);
       const caregiverSnap = await caregiverRef.get();
       if (!caregiverSnap.exists) {
-        await replyMessage(event.replyToken, "ไม่พบบัญชีผู้ดูแลนี้ในระบบ");
+        await sendLineText({ replyToken: event.replyToken, userId, text: "ไม่พบบัญชีผู้ดูแลนี้ในระบบ" });
         continue;
       }
 
@@ -263,6 +266,38 @@ function verifyLineSignature(req) {
   return digest === signature;
 }
 
+
+async function sendLineText({ replyToken, userId, text }) {
+  const safeText = String(text || "").trim();
+  if (!safeText) {
+    return;
+  }
+
+  try {
+    if (replyToken) {
+      await replyMessage(replyToken, safeText);
+      return;
+    }
+  } catch (error) {
+    console.error("replyMessage failed:", error?.message || error);
+    const shouldFallback =
+      LINE_REPLY_FALLBACK_TO_PUSH &&
+      userId &&
+      /Invalid reply token|reply token|400/i.test(String(error?.message || error));
+
+    if (!shouldFallback) {
+      throw error;
+    }
+  }
+
+  if (userId && LINE_REPLY_FALLBACK_TO_PUSH) {
+    await pushMessage(userId, safeText);
+    return;
+  }
+
+  throw new Error("Unable to send LINE message: missing replyToken and fallback disabled or missing userId");
+}
+
 async function replyMessage(replyToken, text) {
   if (!replyToken) {
     return;
@@ -286,6 +321,8 @@ async function callLineApi(url, payload) {
     throw new Error("LINE_CHANNEL_ACCESS_TOKEN is missing");
   }
 
+  console.log(`Calling LINE API: ${url}`);
+
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -305,4 +342,7 @@ async function callLineApi(url, payload) {
 
 app.listen(PORT, HOST, () => {
   console.log(`Server running on http://${HOST}:${PORT}`);
+  console.log(`LINE access token configured: ${LINE_CHANNEL_ACCESS_TOKEN ? "yes" : "no"}`);
+  console.log(`LINE channel secret configured: ${LINE_CHANNEL_SECRET ? "yes" : "no"}`);
+  console.log(`LINE reply fallback to push: ${LINE_REPLY_FALLBACK_TO_PUSH ? "enabled" : "disabled"}`);
 });

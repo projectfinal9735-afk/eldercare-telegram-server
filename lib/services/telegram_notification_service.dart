@@ -11,7 +11,7 @@ class TelegramNotificationService {
 
   static const String _baseUrl = String.fromEnvironment(
     'LINE_SERVER_BASE_URL',
-    defaultValue: 'https://your-line-server.example.com',
+    defaultValue: 'https://eldercare-telegram-server.onrender.com',
   );
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
