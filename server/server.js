@@ -48,6 +48,7 @@ const HOST = "0.0.0.0";
 const LINE_CHANNEL_ACCESS_TOKEN = String(process.env.LINE_CHANNEL_ACCESS_TOKEN || "").trim();
 const LINE_CHANNEL_SECRET = String(process.env.LINE_CHANNEL_SECRET || "").trim();
 const LINE_REPLY_FALLBACK_TO_PUSH = String(process.env.LINE_REPLY_FALLBACK_TO_PUSH || "true").trim().toLowerCase() !== "false";
+const LINE_API_TIMEOUT_MS = Number(process.env.LINE_API_TIMEOUT_MS || 15000);
 
 app.get("/", (_req, res) => {
   res.status(200).send("LINE server is running");
@@ -68,21 +69,26 @@ app.post("/line-webhook", async (req, res) => {
     console.log(`LINE webhook received ${events.length} event(s)`);
 
     for (const event of events) {
+      const userId = String(event?.source?.userId || "").trim();
+
       if (event.type === "follow") {
-        await replyMessage(
-          event.replyToken,
-          "เพิ่มเพื่อนสำเร็จแล้ว ✅\nหากต้องการเชื่อมบัญชีผู้ดูแล ให้พิมพ์\nLINK caregiver_<uid>\nหรือ\nLINK <uid>",
-        );
+        await sendLineText({
+          replyToken: event.replyToken,
+          userId,
+          text:
+            "เพิ่มเพื่อนสำเร็จแล้ว ✅\nหากต้องการเชื่อมบัญชีผู้ดูแล ให้พิมพ์\nLINK caregiver_<uid>\nหรือ\nLINK <uid>",
+        });
         continue;
       }
 
       if (event.type !== "message" || event.message?.type !== "text") {
+        console.log(`Skipping non-text event type: ${event.type}`);
         continue;
       }
 
-      const userId = String(event.source?.userId || "").trim();
       const text = String(event.message?.text || "").trim();
       if (!userId || !text) {
+        console.log("Skipping event: missing userId or text");
         continue;
       }
 
@@ -90,16 +96,21 @@ app.post("/line-webhook", async (req, res) => {
 
       const upper = text.toUpperCase();
       if (!upper.startsWith("LINK ")) {
-        await replyMessage(
-          event.replyToken,
-          "รับข้อความแล้ว ✅\nหากต้องการเชื่อมบัญชีผู้ดูแล ให้พิมพ์ LINK caregiver_<uid>",
-        );
+        await sendLineText({
+          replyToken: event.replyToken,
+          userId,
+          text: "รับข้อความแล้ว ✅\nหากต้องการเชื่อมบัญชีผู้ดูแล ให้พิมพ์ LINK caregiver_<uid>",
+        });
         continue;
       }
 
       let caregiverUid = text.substring(5).trim();
       if (!caregiverUid) {
-        await replyMessage(event.replyToken, "รูปแบบไม่ถูกต้อง\nกรุณาพิมพ์ LINK caregiver_<uid>");
+        await sendLineText({
+          replyToken: event.replyToken,
+          userId,
+          text: "รูปแบบไม่ถูกต้อง\nกรุณาพิมพ์ LINK caregiver_<uid>",
+        });
         continue;
       }
 
@@ -108,14 +119,22 @@ app.post("/line-webhook", async (req, res) => {
       }
 
       if (!caregiverUid) {
-        await replyMessage(event.replyToken, "ไม่พบ caregiver uid\nกรุณาลองใหม่อีกครั้ง");
+        await sendLineText({
+          replyToken: event.replyToken,
+          userId,
+          text: "ไม่พบ caregiver uid\nกรุณาลองใหม่อีกครั้ง",
+        });
         continue;
       }
 
       const caregiverRef = db.collection("users").doc(caregiverUid);
       const caregiverSnap = await caregiverRef.get();
       if (!caregiverSnap.exists) {
-        await sendLineText({ replyToken: event.replyToken, userId, text: "ไม่พบบัญชีผู้ดูแลนี้ในระบบ" });
+        await sendLineText({
+          replyToken: event.replyToken,
+          userId,
+          text: "ไม่พบบัญชีผู้ดูแลนี้ในระบบ",
+        });
         continue;
       }
 
@@ -130,15 +149,16 @@ app.post("/line-webhook", async (req, res) => {
       );
 
       console.log(`Linked caregiver ${caregiverUid} with LINE user ${userId}`);
-      await replyMessage(
-        event.replyToken,
-        "เชื่อม LINE สำเร็จแล้ว ✅\nหลังจากนี้บัญชีนี้จะได้รับการแจ้งเตือนของผู้สูงอายุ",
-      );
+      await sendLineText({
+        replyToken: event.replyToken,
+        userId,
+        text: "เชื่อม LINE สำเร็จแล้ว ✅\nหลังจากนี้บัญชีนี้จะได้รับการแจ้งเตือนของผู้สูงอายุ",
+      });
     }
 
     return res.sendStatus(200);
   } catch (error) {
-    console.error("line-webhook error:", error);
+    console.error("line-webhook error:", error?.stack || error);
     return res.sendStatus(500);
   }
 });
@@ -228,7 +248,7 @@ app.post("/send-alert", async (req, res) => {
 
     return res.json({ ok: true, sent, skipped });
   } catch (error) {
-    console.error("send-alert error:", error);
+    console.error("send-alert error:", error?.stack || error);
     return res.status(500).json({ ok: false, error: error?.message || "send-alert failed" });
   }
 });
@@ -243,7 +263,7 @@ app.get("/test-send", async (req, res) => {
     await pushMessage(userId, "🔥 test แจ้งเตือน LINE สำเร็จ");
     return res.status(200).send("sent");
   } catch (error) {
-    console.error("test-send error:", error);
+    console.error("test-send error:", error?.stack || error);
     return res.status(500).send(error?.message || "error");
   }
 });
@@ -258,14 +278,9 @@ function verifyLineSignature(req) {
     return false;
   }
 
-  const digest = crypto
-    .createHmac("sha256", LINE_CHANNEL_SECRET)
-    .update(req.rawBody)
-    .digest("base64");
-
+  const digest = crypto.createHmac("sha256", LINE_CHANNEL_SECRET).update(req.rawBody).digest("base64");
   return digest === signature;
 }
-
 
 async function sendLineText({ replyToken, userId, text }) {
   const safeText = String(text || "").trim();
@@ -276,22 +291,27 @@ async function sendLineText({ replyToken, userId, text }) {
   try {
     if (replyToken) {
       await replyMessage(replyToken, safeText);
+      console.log("LINE reply success");
       return;
     }
   } catch (error) {
-    console.error("replyMessage failed:", error?.message || error);
+    const message = error?.message || String(error);
+    console.error("replyMessage failed:", message);
     const shouldFallback =
       LINE_REPLY_FALLBACK_TO_PUSH &&
       userId &&
-      /Invalid reply token|reply token|400/i.test(String(error?.message || error));
+      /Invalid reply token|reply token|400|409/i.test(message);
 
     if (!shouldFallback) {
       throw error;
     }
+
+    console.log("Falling back to push message");
   }
 
   if (userId && LINE_REPLY_FALLBACK_TO_PUSH) {
     await pushMessage(userId, safeText);
+    console.log("LINE push fallback success");
     return;
   }
 
@@ -300,17 +320,17 @@ async function sendLineText({ replyToken, userId, text }) {
 
 async function replyMessage(replyToken, text) {
   if (!replyToken) {
-    return;
+    throw new Error("replyToken is missing");
   }
 
-  await callLineApi("https://api.line.me/v2/bot/message/reply", {
+  return callLineApi("https://api.line.me/v2/bot/message/reply", {
     replyToken,
     messages: [{ type: "text", text }],
   });
 }
 
 async function pushMessage(userId, text) {
-  await callLineApi("https://api.line.me/v2/bot/message/push", {
+  return callLineApi("https://api.line.me/v2/bot/message/push", {
     to: String(userId),
     messages: [{ type: "text", text }],
   });
@@ -322,22 +342,41 @@ async function callLineApi(url, payload) {
   }
 
   console.log(`Calling LINE API: ${url}`);
+  console.log("LINE payload:", JSON.stringify(payload));
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`,
-    },
-    body: JSON.stringify(payload),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), LINE_API_TIMEOUT_MS);
 
-  const text = await response.text();
-  if (!response.ok) {
-    throw new Error(`LINE API failed: ${response.status} ${text}`);
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`,
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    const responseText = await response.text();
+    console.log(`LINE API status: ${response.status}`);
+    if (responseText) {
+      console.log(`LINE API body: ${responseText}`);
+    }
+
+    if (!response.ok) {
+      throw new Error(`LINE API failed: ${response.status} ${responseText}`);
+    }
+
+    return responseText;
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error(`LINE API timeout after ${LINE_API_TIMEOUT_MS}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return text;
 }
 
 app.listen(PORT, HOST, () => {
@@ -345,4 +384,5 @@ app.listen(PORT, HOST, () => {
   console.log(`LINE access token configured: ${LINE_CHANNEL_ACCESS_TOKEN ? "yes" : "no"}`);
   console.log(`LINE channel secret configured: ${LINE_CHANNEL_SECRET ? "yes" : "no"}`);
   console.log(`LINE reply fallback to push: ${LINE_REPLY_FALLBACK_TO_PUSH ? "enabled" : "disabled"}`);
+  console.log(`LINE API timeout: ${LINE_API_TIMEOUT_MS}ms`);
 });
