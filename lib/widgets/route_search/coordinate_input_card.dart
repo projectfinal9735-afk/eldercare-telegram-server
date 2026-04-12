@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_colors.dart';
+
 class CoordinateInputCard extends StatelessWidget {
   final TextEditingController latController;
   final TextEditingController lngController;
@@ -33,11 +35,11 @@ class CoordinateInputCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             if (latestSosLabel != null) ...[
-              Text(latestSosLabel!, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+              Text(latestSosLabel!, style: const TextStyle(fontSize: 14, color: AppColors.subtleText)),
               const SizedBox(height: 4),
             ],
             if (latestLiveLocationLabel != null) ...[
-              Text(latestLiveLocationLabel!, style: const TextStyle(fontSize: 12, color: Colors.deepOrange)),
+              Text(latestLiveLocationLabel!, style: const TextStyle(fontSize: 14, color: Colors.deepOrange)),
               const SizedBox(height: 8),
             ],
             Row(
@@ -69,7 +71,7 @@ class CoordinateInputCard extends StatelessWidget {
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color.fromARGB(255, 239, 150, 91),
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppColors.card,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                   onPressed: onSubmit,

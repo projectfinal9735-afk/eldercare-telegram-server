@@ -42,7 +42,7 @@ class AndroidOnlyApp extends StatelessWidget {
               'แอปนี้รองรับการใช้งานบน Android เท่านั้น\n'
               'กรุณารันบน Android Emulator หรือโทรศัพท์ Android',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18),
+              style: TextStyle(fontSize: 26),
             ),
           ),
         ),
@@ -60,6 +60,15 @@ class MyApp extends StatelessWidget {
       theme: buildAppTheme(),
       debugShowCheckedModeBanner: false,
       title: 'Elder Care',
+      builder: (context, child) {
+        final media = MediaQuery.of(context);
+        return MediaQuery(
+          data: media.copyWith(
+            textScaler: TextScaler.linear(media.textScaler.scale(1.08).clamp(1.0, 1.18)),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: const Root(),
     );
   }

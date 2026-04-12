@@ -4,15 +4,24 @@ import 'package:url_launcher/url_launcher.dart';
 class TelegramConnectService {
   TelegramConnectService._();
 
-  static const String botUsername = 'elder_care_alert_bot';
+  // LINE Official Account basic ID from the current OA.
+  static const String officialAccountId = '@912autab';
 
-  static Uri? buildConnectUri() {
+  // Backward-compatible alias from the previous Telegram-based implementation.
+  static String get botUsername => officialAccountId;
+
+  static String? buildLinkMessage() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return null;
+    return 'LINK caregiver_$uid';
+  }
 
-    return Uri.parse(
-      'https://t.me/$botUsername?start=caregiver_$uid',
-    );
+  static Uri? buildConnectUri() {
+    final message = buildLinkMessage();
+    if (message == null) return null;
+    final encodedId = Uri.encodeComponent(officialAccountId);
+    final encodedMessage = Uri.encodeComponent(message);
+    return Uri.parse('https://line.me/R/oaMessage/$encodedId/?$encodedMessage');
   }
 
   static Future<bool> openConnectBot() async {

@@ -45,7 +45,7 @@ class RouteFabMenu extends StatelessWidget {
                   key: const ValueKey('expanded'),
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    if (false) ...[
+                    if (showLiveLocationToggle) ...[
                       _MiniActionButton(
                         label: isSharingLiveLocation ? 'หยุดแชร์ตำแหน่งสด' : 'แชร์ตำแหน่งสด',
                         icon: isSharingLiveLocation ? Icons.location_disabled : Icons.location_searching,
@@ -95,14 +95,6 @@ class RouteFabMenu extends StatelessWidget {
                       icon: Icons.my_location,
                       onTap: onMyLocation,
                     ),
-                    const SizedBox(height: 10),
-                    _MiniActionButton(
-                      label: 'SOS',
-                      icon: Icons.sos,
-                      isDanger: true,
-                      onTap: onSOS,
-                    ),
-                    const SizedBox(height: 10),
                   ],
                 )
               : const SizedBox.shrink(key: ValueKey('collapsed')),
@@ -153,7 +145,7 @@ class _MiniActionButton extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 15,
+                  fontSize: 23,
                   fontWeight: FontWeight.w600,
                   color: color,
                 ),

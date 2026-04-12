@@ -4,6 +4,8 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
+import '../theme/app_colors.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -22,6 +24,7 @@ import '../services/telegram_notification_service.dart';
 import '../services/weather_service.dart';
 import '../widgets/app_state_card.dart';
 import '../widgets/weather_badge.dart';
+import 'sos_call_screen.dart';
 import '../widgets/route_search/coordinate_input_card.dart';
 import '../widgets/route_search/poi_list_card.dart';
 import '../widgets/route_search/route_fab_menu.dart';
@@ -50,6 +53,7 @@ class _RouteSearchScreenState extends State<RouteSearchScreen> {
   final List<StreamSubscription<QuerySnapshot<Map<String, dynamic>>>> _sosSubs = [];
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _caregiverLiveDocSub;
   final List<StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>> _liveLocationSubs = [];
+  late final DateTime _sosListenerStartedAt;
 
   String? _latestSosLabel;
   String? _latestLiveLocationLabel;
@@ -77,9 +81,17 @@ class _RouteSearchScreenState extends State<RouteSearchScreen> {
   String? _elderFullName;
   Timer? _inlineMessageTimer;
 
+  static const List<Map<String, String>> _emergencyContacts = [
+    {'label': '191 ตำรวจ', 'number': '191'},
+    {'label': '1669 แพทย์ฉุกเฉิน', 'number': '1669'},
+    {'label': '199 ดับเพลิง', 'number': '199'},
+    {'label': '1784 ปภ.', 'number': '1784'},
+  ];
+
   @override
   void initState() {
     super.initState();
+    _sosListenerStartedAt = DateTime.now();
     _primeMyLocation();
     if (widget.showCoordinateInput) {
       _listenLatestSOS();
@@ -153,6 +165,13 @@ class _RouteSearchScreenState extends State<RouteSearchScreen> {
 
       if (latest.lat == 0 && latest.lng == 0) return;
 
+      final createdAt = latest.createdAt;
+      final isNewSos = createdAt != null && !createdAt.isBefore(_sosListenerStartedAt);
+
+      if (!isNewSos) {
+        return;
+      }
+
       final label = latest.elderName.trim().isEmpty
           ? 'SOS จากผู้สูงอายุที่ดูแล'
           : 'SOS จาก ${latest.elderName}';
@@ -187,6 +206,7 @@ class _RouteSearchScreenState extends State<RouteSearchScreen> {
         final sub = FirebaseFirestore.instance
             .collection('sos_requests')
             .where('elderId', isEqualTo: elderId)
+            .where('status', isEqualTo: 'open')
             .snapshots()
             .listen((snap) {
           if (snap.docs.isEmpty) {
@@ -356,17 +376,11 @@ class _RouteSearchScreenState extends State<RouteSearchScreen> {
     if (_sharingLiveLocation) {
       final lastPoint = _currentLocation;
       await LocationService.instance.stopTracking();
-      await LiveLocationService.instance.setSharingStopped();
-      if (lastPoint != null) {
-        await _notifyCaregivers(
-          type: 'live_stopped',
-          title: '🛑 หยุดแชร์ตำแหน่งสด',
-          body: _elderFullName?.trim().isNotEmpty == true
-              ? '${_elderFullName!} หยุดแชร์ตำแหน่งสดแล้ว'
-              : 'ผู้สูงอายุหยุดแชร์ตำแหน่งสดแล้ว',
-          point: lastPoint,
-        );
-      }
+      await LiveLocationService.instance.setSharingStopped(
+        lat: lastPoint?.latitude,
+        lng: lastPoint?.longitude,
+        elderName: _elderFullName,
+      );
       if (!mounted) return;
       setState(() => _sharingLiveLocation = false);
       _showInlineMessage('หยุดแชร์ตำแหน่งสดแล้ว');
@@ -410,6 +424,29 @@ class _RouteSearchScreenState extends State<RouteSearchScreen> {
     _center = p;
     _mapController.move(p, zoom);
     setState(() {});
+  }
+
+  Future<void> _handlePoiSearch(RoutePoiType type) async {
+    if (_loadingPois) return;
+
+    setState(() => _fabExpanded = false);
+    _showInlineMessage('กำลังค้นหา${type.label}ใกล้ฉัน...', isError: false);
+
+    try {
+      await Future.delayed(const Duration(milliseconds: 350));
+      await _loadNearbyPois(type).timeout(
+        const Duration(seconds: 18),
+        onTimeout: () {
+          throw TimeoutException('ค้นหา${type.label}ใช้เวลานานเกินไป กรุณาลองใหม่');
+        },
+      );
+    } catch (e) {
+      final message = e is TimeoutException
+          ? e.message ?? 'ระบบใช้เวลานานเกินไป กรุณาลองใหม่'
+          : AppError.message(e);
+      _showInlineMessage(message, isError: true);
+      _showSnack(message);
+    }
   }
 
   Future<void> _loadNearbyPois(RoutePoiType type) async {
@@ -461,9 +498,6 @@ class _RouteSearchScreenState extends State<RouteSearchScreen> {
       if (!mounted) return;
       setState(() => _nearPois = items.take(5).toList());
       _showSnack('พบ${type.label}ใกล้คุณ ${_nearPois.length} แห่ง');
-    } catch (e) {
-      _showInlineMessage(AppError.message(e), isError: true);
-      _showSnack(AppError.message(e));
     } finally {
       if (mounted) setState(() => _loadingPois = false);
     }
@@ -602,9 +636,6 @@ out center tags 80;
       } else {
         _showInlineMessage('ไม่พบเส้นทาง', isError: true);
       }
-    } catch (e) {
-      _showInlineMessage(AppError.message(e), isError: true);
-      _showSnack(AppError.message(e));
     } finally {
       if (mounted) setState(() => _loadingRoute = false);
     }
@@ -628,47 +659,36 @@ out center tags 80;
       return;
     }
 
+    await HapticFeedback.heavyImpact();
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    await HapticFeedback.heavyImpact();
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    await HapticFeedback.heavyImpact();
+
     try {
       await SosService.instance.createSOS(point: p);
+      final caregiver = await SosService.instance.getPrimaryCaregiverContact();
+
+      if (!mounted) return;
+
+      _showInlineMessage('ส่ง SOS และแจ้งเตือนผู้ดูแลแล้ว');
+
+      if (caregiver == null) {
+        _showSnack('ส่ง SOS แล้ว แต่ยังไม่พบข้อมูลผู้ดูแล');
+        return;
+      }
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => SosCallScreen(
+            caregiverName: (caregiver['name'] ?? '').trim(),
+            caregiverPhone: (caregiver['phone'] ?? '').trim(),
+          ),
+        ),
+      );
     } catch (e) {
       _showInlineMessage(AppError.message(e), isError: true);
     }
-
-    final text = 'SOS! พิกัด: ${p.latitude.toStringAsFixed(6)}, ${p.longitude.toStringAsFixed(6)}';
-
-    if (!mounted) return;
-    await showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('SOS ขอความช่วยเหลือ'),
-        content: Text('$text\n\nคัดลอกพิกัดส่งให้ผู้ดูแล หรือโทรฉุกเฉินได้'),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: text));
-              if (context.mounted) Navigator.pop(context);
-              _showSnack('คัดลอกพิกัดแล้ว');
-            },
-            child: const Text('คัดลอกพิกัด'),
-          ),
-          TextButton(
-            onPressed: () async {
-              final uri = Uri.parse('tel:1669');
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri);
-              } else {
-                _showSnack('โทรไม่สำเร็จ');
-              }
-            },
-            child: const Text('โทร 1669'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('ปิด'),
-          ),
-        ],
-      ),
-    );
   }
 
   void _showInlineMessage(String msg, {bool isError = false}) {
@@ -858,15 +878,151 @@ out center tags 80;
     return '$h ชม. $m นาที';
   }
 
+  Future<void> _openEmergencyDialer(String number) async {
+    final phone = number.trim();
+    if (phone.isEmpty) return;
+
+    try {
+      await HapticFeedback.heavyImpact();
+      await launchUrl(
+        Uri.parse('tel:$phone'),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ไม่สามารถเปิดหน้าโทรได้')),
+      );
+    }
+  }
+
+  Future<void> _showEmergencyContacts() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.card,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x22000000),
+                    blurRadius: 18,
+                    offset: Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(20, 18, 20, 8),
+                    child: Row(
+                      children: [
+                        Icon(Icons.local_phone_rounded, color: Colors.red),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'ติดต่อฉุกเฉิน',
+                            style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'เลือกหน่วยงานที่ต้องการติดต่อ แล้วระบบจะเปิดหน้าจอโทรให้อัตโนมัติ',
+                        style: TextStyle(color: AppColors.subtleText, height: 1.35),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ..._emergencyContacts.map((contact) {
+                    final label = contact['label'] ?? '';
+                    final number = contact['number'] ?? '';
+                    return ListTile(
+                      leading: Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFE8E8),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(Icons.phone_in_talk_rounded, color: Colors.red),
+                      ),
+                      title: Text(
+                        label,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      subtitle: Text('โทร $number'),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        _openEmergencyDialer(number);
+                      },
+                    );
+                  }),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEmergencyContactButton() {
+    return FilledButton.icon(
+      onPressed: _showEmergencyContacts,
+      style: FilledButton.styleFrom(
+        backgroundColor: Colors.red,
+        foregroundColor: AppColors.card,
+        minimumSize: const Size(0, 52),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+      icon: const Icon(Icons.call_rounded),
+      label: const Text(
+        'ติดต่อฉุกเฉิน',
+        style: TextStyle(fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    const mapPadding = EdgeInsets.fromLTRB(16, 170, 16, 30);
+    final media = MediaQuery.of(context);
+    final topInset = media.padding.top;
+    final bottomInset = media.padding.bottom;
+    final mapTop = widget.showCoordinateInput ? 178.0 : 132.0;
+    final bottomOverlay = _routePoints.isNotEmpty ? 124.0 : 86.0;
 
     return Stack(
       children: [
         Positioned.fill(
           child: Padding(
-            padding: mapPadding,
+            padding: EdgeInsets.fromLTRB(16, mapTop + topInset, 16, bottomOverlay + bottomInset),
             child: RouteMapPanel(
               mapController: _mapController,
               center: _center,
@@ -885,7 +1041,7 @@ out center tags 80;
         Positioned(
           left: 16,
           right: 16,
-          top: 12,
+          top: 12 + topInset,
           child: Column(
             children: [
               if (_inlineMessage != null)
@@ -896,16 +1052,48 @@ out center tags 80;
                     message: _inlineMessage!,
                   ),
                 ),
-              if (_weatherInfo != null)
+              if (_weatherInfo != null || true)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: WeatherBadge(
-                      weather: _weatherInfo!,
-                      loading: _loadingWeather,
-                      onRefresh: () => _refreshWeather(),
-                    ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_weatherInfo != null)
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: WeatherBadge(
+                              weather: _weatherInfo!,
+                              loading: _loadingWeather,
+                              onRefresh: () => _refreshWeather(),
+                            ),
+                          ),
+                        )
+                      else
+                        const Spacer(),
+                      const SizedBox(width: 8),
+                      if (widget.showCoordinateInput)
+                        _buildEmergencyContactButton()
+                      else
+                        FilledButton.icon(
+                          onPressed: _onSOS,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: AppColors.card,
+                            minimumSize: const Size(0, 52),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          icon: const Icon(Icons.sos),
+                          label: const Text(
+                            'SOS',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               if (widget.showCoordinateInput)
@@ -942,7 +1130,7 @@ out center tags 80;
           Positioned(
             left: 16,
             right: 16,
-            bottom: 30,
+            bottom: 82 + bottomInset,
             child: RouteSummaryCard(
               loadingRoute: _loadingRoute,
               title: _selectedPoi?.name ?? 'ปลายทาง',
@@ -952,38 +1140,18 @@ out center tags 80;
           ),
         Positioned(
           right: 14,
-          bottom: 14,
+          bottom: 18 + bottomInset,
           child: RouteFabMenu(
             expanded: _fabExpanded,
             loading: _loadingPois || _loadingMyLocation,
             isSharingLiveLocation: _sharingLiveLocation,
             showLiveLocationToggle: !widget.showCoordinateInput,
             onToggle: () => setState(() => _fabExpanded = !_fabExpanded),
-            onHospitals: () async {
-              if (_loadingPois) return;
-              setState(() => _fabExpanded = false);
-              await _loadNearbyPois(RoutePoiType.hospital);
-            },
-            onTemples: () async {
-              if (_loadingPois) return;
-              setState(() => _fabExpanded = false);
-              await _loadNearbyPois(RoutePoiType.temple);
-            },
-            onPharmacies: () async {
-              if (_loadingPois) return;
-              setState(() => _fabExpanded = false);
-              await _loadNearbyPois(RoutePoiType.pharmacy);
-            },
-            onRestaurants: () async {
-              if (_loadingPois) return;
-              setState(() => _fabExpanded = false);
-              await _loadNearbyPois(RoutePoiType.restaurant);
-            },
-            onCafes: () async {
-              if (_loadingPois) return;
-              setState(() => _fabExpanded = false);
-              await _loadNearbyPois(RoutePoiType.cafe);
-            },
+            onHospitals: () => _handlePoiSearch(RoutePoiType.hospital),
+            onTemples: () => _handlePoiSearch(RoutePoiType.temple),
+            onPharmacies: () => _handlePoiSearch(RoutePoiType.pharmacy),
+            onRestaurants: () => _handlePoiSearch(RoutePoiType.restaurant),
+            onCafes: () => _handlePoiSearch(RoutePoiType.cafe),
             onMyLocation: () async {
               setState(() => _fabExpanded = false);
               await _goToMyLocation();

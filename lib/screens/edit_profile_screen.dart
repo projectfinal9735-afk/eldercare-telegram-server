@@ -1,6 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../theme/app_colors.dart';
+
+import '../constants/family_relationships.dart';
 
 /// หน้าแก้ไขข้อมูลผู้ใช้ (อ่านค่าจาก Firestore และบันทึกกลับไปที่ users/{uid})
 ///
@@ -26,6 +31,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   String? _identifier;
   String? _role;
+  String? _relationshipToElder;
+  String? _relationshipToCaregiver;
 
   @override
   void initState() {
@@ -57,6 +64,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         final data = snap.data() as Map<String, dynamic>;
         _identifier = (data['identifier'] ?? '').toString();
         _role = (data['role'] ?? '').toString();
+        _relationshipToElder = (data['relationshipToElder'] ?? '').toString();
+        _relationshipToCaregiver = (data['relationshipToCaregiver'] ?? '').toString();
         _fullName.text = (data['fullName'] ?? '').toString();
         _phone.text = (data['phone'] ?? '').toString();
       }
@@ -84,6 +93,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
         'fullName': _fullName.text.trim(),
         'phone': _phone.text.trim(),
+        if ((_role ?? '') == 'caregiver') 'relationshipToElder': (_relationshipToElder ?? '').trim(),
+        if ((_role ?? '') == 'elder') 'relationshipToCaregiver': (_relationshipToCaregiver ?? '').trim(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
@@ -106,10 +117,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   InputDecoration _dec(String label) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: const BorderSide(color: AppColors.border),
+    );
+
     return InputDecoration(
       labelText: label,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+      alignLabelWithHint: true,
+      floatingLabelBehavior: FloatingLabelBehavior.always,
+      isDense: false,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      border: border,
+      enabledBorder: border,
+      focusedBorder: border.copyWith(
+        borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
       ),
     );
   }
@@ -130,14 +152,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             children: [
               const Text(
                 'แก้ไขข้อมูลส่วนตัว',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 18),
 
-              if ((_identifier ?? '').isNotEmpty)
+              if ((_identifier ?? '').isNotEmpty) ...[
                 _ReadOnlyTile(label: 'ชื่อผู้ใช้', value: _identifier!),
-              if ((_role ?? '').isNotEmpty)
+                const SizedBox(height: 12),
+              ],
+              if ((_role ?? '').isNotEmpty) ...[
                 _ReadOnlyTile(label: 'บทบาท', value: _role!),
+                const SizedBox(height: 12),
+              ],
               if ((_identifier ?? '').isNotEmpty || (_role ?? '').isNotEmpty)
                 const SizedBox(height: 16),
 
@@ -155,6 +181,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               TextFormField(
                 controller: _phone,
                 keyboardType: TextInputType.phone,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(10),
+                ],
                 decoration: _dec('เบอร์โทรศัพท์'),
                 validator: (v) {
                   final t = (v ?? '').trim();
@@ -165,8 +195,56 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   return null;
                 },
               ),
+              const SizedBox(height: 16),
 
-              const SizedBox(height: 24),
+              if ((_role ?? '') == 'caregiver') ...[
+                DropdownButtonFormField<String>(
+                  value: (_relationshipToElder ?? '').isEmpty ? null : _relationshipToElder,
+                  items: caregiverRelationshipOptions
+                      .map(
+                        (relationship) => DropdownMenuItem<String>(
+                          value: relationship,
+                          child: Text(relationship),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() => _relationshipToElder = value);
+                  },
+                  decoration: _dec('ความสัมพันธ์กับผู้สูงอายุ'),
+                  validator: (value) {
+                    if ((_role ?? '') == 'caregiver' && (value == null || value.isEmpty)) {
+                      return 'กรุณาเลือกความสัมพันธ์';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 24),
+              ] else if ((_role ?? '') == 'elder') ...[
+                DropdownButtonFormField<String>(
+                  value: (_relationshipToCaregiver ?? '').isEmpty ? null : _relationshipToCaregiver,
+                  items: caregiverRelationshipOptions
+                      .map(
+                        (relationship) => DropdownMenuItem<String>(
+                          value: relationship,
+                          child: Text(relationship),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() => _relationshipToCaregiver = value);
+                  },
+                  decoration: _dec('ความสัมพันธ์กับผู้ดูแล'),
+                  validator: (value) {
+                    if ((_role ?? '') == 'elder' && (value == null || value.isEmpty)) {
+                      return 'กรุณาเลือกความสัมพันธ์';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 24),
+              ] else
+                const SizedBox(height: 24),
 
               SizedBox(
                 width: double.infinity,
@@ -183,7 +261,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     child: Text(
                       _saving ? 'กำลังบันทึก...' : 'บันทึก',
-                      style: const TextStyle(fontSize: 16),
+                      style: const TextStyle(fontSize: 26),
                     ),
                   ),
                 ),
@@ -205,17 +283,17 @@ class _ReadOnlyTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        border: Border.all(color: const Color.fromARGB(220, 0, 0, 0)),
+        border: Border.all(color: AppColors.text),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 12, color: Color.fromARGB(220, 0, 0, 0))),
-          const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          Text(label, style: const TextStyle(fontSize: 14, color: AppColors.text)),
+          const SizedBox(height: 8),
+          Text(value, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w600)),
         ],
       ),
     );

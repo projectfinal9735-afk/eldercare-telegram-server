@@ -1,10 +1,40 @@
+import "dotenv/config";
+import crypto from "crypto";
 import express from "express";
 import admin from "firebase-admin";
+import fetch from "node-fetch";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
-app.use(express.json());
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  }),
+);
 
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+function loadServiceAccount() {
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  }
+
+  const filePath = path.join(__dirname, "serviceAccountKey.json");
+  if (fs.existsSync(filePath)) {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  }
+
+  throw new Error(
+    "Missing Firebase credentials. Set FIREBASE_SERVICE_ACCOUNT or provide serviceAccountKey.json",
+  );
+}
+
+const serviceAccount = loadServiceAccount();
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -13,48 +43,99 @@ if (!admin.apps.length) {
 }
 
 const db = admin.firestore();
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
+const HOST = "0.0.0.0";
+const LINE_CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
 
-app.post("/telegram-webhook", async (req, res) => {
+app.get("/", (_req, res) => {
+  res.status(200).send("LINE server is running");
+});
+
+app.get("/health", (_req, res) => {
+  res.status(200).json({ ok: true });
+});
+
+app.post("/line-webhook", async (req, res) => {
   try {
-    const message = req.body?.message;
-
-    if (!message || !message.text) {
-      return res.sendStatus(200);
+    if (!verifyLineSignature(req)) {
+      return res.status(401).send("invalid signature");
     }
 
-    const chatId = String(message.chat.id);
-    const text = message.text.trim();
+    const events = Array.isArray(req.body?.events) ? req.body.events : [];
 
-    console.log("Received:", text);
+    for (const event of events) {
+      if (event.type === "follow") {
+        await replyMessage(
+          event.replyToken,
+          "เพิ่มเพื่อนสำเร็จแล้ว ✅\nหากต้องการเชื่อมบัญชีผู้ดูแล ให้พิมพ์\nLINK caregiver_<uid>\nหรือ\nLINK <uid>",
+        );
+        continue;
+      }
 
-    if (!text.startsWith("/start")) {
-      return res.sendStatus(200);
+      if (event.type !== "message" || event.message?.type !== "text") {
+        continue;
+      }
+
+      const userId = String(event.source?.userId || "").trim();
+      const text = String(event.message?.text || "").trim();
+      if (!userId || !text) {
+        continue;
+      }
+
+      console.log("LINE received:", text, "from", userId);
+
+      const upper = text.toUpperCase();
+      if (!upper.startsWith("LINK ")) {
+        await replyMessage(
+          event.replyToken,
+          "รับข้อความแล้ว ✅\nหากต้องการเชื่อมบัญชีผู้ดูแล ให้พิมพ์ LINK caregiver_<uid>",
+        );
+        continue;
+      }
+
+      let caregiverUid = text.substring(5).trim();
+      if (!caregiverUid) {
+        await replyMessage(event.replyToken, "รูปแบบไม่ถูกต้อง\nกรุณาพิมพ์ LINK caregiver_<uid>");
+        continue;
+      }
+
+      if (caregiverUid.toLowerCase().startsWith("caregiver_")) {
+        caregiverUid = caregiverUid.substring("caregiver_".length).trim();
+      }
+
+      if (!caregiverUid) {
+        await replyMessage(event.replyToken, "ไม่พบ caregiver uid\nกรุณาลองใหม่อีกครั้ง");
+        continue;
+      }
+
+      const caregiverRef = db.collection("users").doc(caregiverUid);
+      const caregiverSnap = await caregiverRef.get();
+      if (!caregiverSnap.exists) {
+        await replyMessage(event.replyToken, "ไม่พบบัญชีผู้ดูแลนี้ในระบบ");
+        continue;
+      }
+
+      await caregiverRef.set(
+        {
+          lineUserId: userId,
+          lineConnected: true,
+          lineLinkedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+
+      console.log(`Linked caregiver ${caregiverUid} with LINE user ${userId}`);
+      await replyMessage(
+        event.replyToken,
+        "เชื่อม LINE สำเร็จแล้ว ✅\nหลังจากนี้บัญชีนี้จะได้รับการแจ้งเตือนของผู้สูงอายุ",
+      );
     }
 
-    const parts = text.split(" ");
-    const payload = parts[1] || "";
-
-    if (!payload.startsWith("caregiver_")) {
-      await sendMessage(chatId, "เชื่อมต่อสำเร็จแล้ว ✅");
-      return res.sendStatus(200);
-    }
-
-    const caregiverUid = payload.replace("caregiver_", "").trim();
-
-    await db.collection("users").doc(caregiverUid).set(
-      {
-        telegramChatId: chatId,
-        telegramConnected: true,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
-
-    await sendMessage(chatId, "เชื่อม Telegram สำเร็จแล้ว ✅");
     return res.sendStatus(200);
   } catch (error) {
-    console.error("telegram-webhook error:", error);
+    console.error("line-webhook error:", error);
     return res.sendStatus(500);
   }
 });
@@ -72,22 +153,31 @@ app.post("/send-alert", async (req, res) => {
       lng,
     } = req.body || {};
 
-    console.log("send-alert payload:", req.body);
+    let resolvedCaregiverIds = Array.isArray(caregiverIds)
+      ? caregiverIds.map((v) => String(v || "").trim()).filter(Boolean)
+      : [];
 
-    if (!Array.isArray(caregiverIds) || caregiverIds.length === 0) {
+    if (resolvedCaregiverIds.length === 0 && elderId) {
+      const elderSnap = await db.collection("users").doc(String(elderId)).get();
+      const elderData = elderSnap.data() || {};
+      const raw = elderData.caregiverIds;
+
+      if (Array.isArray(raw)) {
+        resolvedCaregiverIds = raw.map((v) => String(v || "").trim()).filter(Boolean);
+      } else if (typeof raw === "string" && raw.trim()) {
+        resolvedCaregiverIds = [raw.trim()];
+      }
+    }
+
+    if (resolvedCaregiverIds.length === 0) {
       return res.status(400).json({ ok: false, error: "caregiverIds required" });
     }
 
-    const mapsUrl =
-      lat != null && lng != null
-        ? `https://maps.google.com/?q=${lat},${lng}`
-        : null;
-
+    const mapsUrl = lat != null && lng != null ? `https://maps.google.com/?q=${lat},${lng}` : null;
+    const emoji = type === "sos" ? "🚨" : "🔔";
     const text = [
-      `🔔 ${title}`,
+      `${emoji} ${title}`,
       elderName ? `ผู้สูงอายุ: ${elderName}` : null,
-      elderId ? `รหัส: ${elderId}` : null,
-      type ? `ประเภท: ${type}` : null,
       body || null,
       mapsUrl ? `📍 ตำแหน่ง: ${mapsUrl}` : null,
     ]
@@ -95,28 +185,41 @@ app.post("/send-alert", async (req, res) => {
       .join("\n");
 
     const caregiverDocs = await Promise.all(
-      caregiverIds.map((id) => db.collection("users").doc(id).get())
+      resolvedCaregiverIds.map(async (id) => ({ id, snap: await db.collection("users").doc(id).get() })),
     );
+
+    await db.collection("line_alert_logs").add({
+      elderId: elderId || null,
+      elderName: elderName || "",
+      caregiverIds: resolvedCaregiverIds,
+      type,
+      title,
+      body,
+      lat: lat ?? null,
+      lng: lng ?? null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
 
     let sent = 0;
     const skipped = [];
 
-    for (const doc of caregiverDocs) {
+    for (const item of caregiverDocs) {
+      const doc = item.snap;
       if (!doc.exists) {
-        skipped.push({ caregiverId: doc.id, reason: "not_found" });
+        skipped.push({ caregiverId: item.id, reason: "not_found" });
         continue;
       }
 
       const data = doc.data() || {};
-      const chatId = data.telegramChatId;
-      const connected = data.telegramConnected === true;
+      const lineUserId = data.lineUserId;
+      const connected = data.lineConnected === true;
 
-      if (!chatId || !connected) {
-        skipped.push({ caregiverId: doc.id, reason: "telegram_not_connected" });
+      if (!lineUserId || !connected) {
+        skipped.push({ caregiverId: item.id, reason: "line_not_connected" });
         continue;
       }
 
-      await sendMessage(String(chatId), text);
+      await pushMessage(String(lineUserId), text);
       sent += 1;
     }
 
@@ -127,42 +230,79 @@ app.post("/send-alert", async (req, res) => {
   }
 });
 
-async function sendMessage(chatId, text) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
+app.get("/test-send", async (req, res) => {
+  try {
+    const userId = String(req.query.userId || process.env.LINE_TEST_USER_ID || "").trim();
+    if (!userId) {
+      return res.status(400).send("set LINE_TEST_USER_ID first or call /test-send?userId=U...");
+    }
 
-  const resp = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    await pushMessage(userId, "🔥 test แจ้งเตือน LINE สำเร็จ");
+    return res.status(200).send("sent");
+  } catch (error) {
+    console.error("test-send error:", error);
+    return res.status(500).send(error?.message || "error");
+  }
+});
+
+function verifyLineSignature(req) {
+  if (!LINE_CHANNEL_SECRET) {
+    return true;
+  }
+
+  const signature = req.get("x-line-signature");
+  if (!signature || !req.rawBody) {
+    return false;
+  }
+
+  const digest = crypto
+    .createHmac("sha256", LINE_CHANNEL_SECRET)
+    .update(req.rawBody)
+    .digest("base64");
+
+  return digest === signature;
+}
+
+async function replyMessage(replyToken, text) {
+  if (!replyToken) {
+    return;
+  }
+
+  await callLineApi("https://api.line.me/v2/bot/message/reply", {
+    replyToken,
+    messages: [{ type: "text", text }],
+  });
+}
+
+async function pushMessage(userId, text) {
+  await callLineApi("https://api.line.me/v2/bot/message/push", {
+    to: String(userId),
+    messages: [{ type: "text", text }],
+  });
+}
+
+async function callLineApi(url, payload) {
+  if (!LINE_CHANNEL_ACCESS_TOKEN) {
+    throw new Error("LINE_CHANNEL_ACCESS_TOKEN is missing");
+  }
+
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`,
     },
-    body: JSON.stringify({
-      chat_id: String(chatId),
-      text,
-    }),
+    body: JSON.stringify(payload),
   });
 
-  const data = await resp.json();
-  if (!resp.ok || !data.ok) {
-    throw new Error(`Telegram send failed: ${JSON.stringify(data)}`);
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`LINE API failed: ${response.status} ${text}`);
   }
-  return data;
+
+  return text;
 }
 
-app.get("/", (_req, res) => {
-  res.send("Server is running 🚀");
-});
-
-app.get("/test-send", async (_req, res) => {
-  try {
-    const chatId = "8589444452";
-    await sendMessage(chatId, "🔥 test แจ้งเตือนสำเร็จ");
-    res.send("sent");
-  } catch (e) {
-    console.error("test-send error:", e);
-    res.status(500).send("error");
-  }
-});
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`Server running on http://${HOST}:${PORT}`);
 });

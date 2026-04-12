@@ -9,7 +9,10 @@ class TelegramNotificationService {
   TelegramNotificationService._();
   static final TelegramNotificationService instance = TelegramNotificationService._();
 
-  static const String _baseUrl = 'https://eldercare-telegram-server.onrender.com';
+  static const String _baseUrl = String.fromEnvironment(
+    'LINE_SERVER_BASE_URL',
+    defaultValue: 'https://your-line-server.example.com',
+  );
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
@@ -21,16 +24,28 @@ class TelegramNotificationService {
     Map<String, dynamic>? extra,
   }) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
+    if (uid == null) {
+      return;
+    }
 
     final elderSnap = await _db.collection('users').doc(uid).get();
     final elderData = elderSnap.data() ?? <String, dynamic>{};
-    final caregiverIds = (elderData['caregiverIds'] as List<dynamic>? ?? const <dynamic>[])
-        .map((e) => e.toString())
-        .where((e) => e.isNotEmpty)
-        .toList();
 
-    if (caregiverIds.isEmpty) return;
+    final rawCaregiverIds = elderData['caregiverIds'];
+    List<String> caregiverIds = <String>[];
+
+    if (rawCaregiverIds is List) {
+      caregiverIds = rawCaregiverIds
+          .map((e) => e.toString())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    } else if (rawCaregiverIds is String && rawCaregiverIds.isNotEmpty) {
+      caregiverIds = <String>[rawCaregiverIds];
+    }
+
+    if (caregiverIds.isEmpty) {
+      return;
+    }
 
     final payload = <String, dynamic>{
       'elderId': uid,
@@ -51,7 +66,16 @@ class TelegramNotificationService {
     );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('Telegram alert failed: ${response.statusCode} ${response.body}');
+      throw Exception('LINE alert failed: ${response.statusCode} ${response.body}');
     }
   }
+}
+
+
+// Backward-compatible alias so updated LINE call sites can keep using
+// LINENotificationService while the file/class name remains unchanged.
+class LINENotificationService {
+  LINENotificationService._();
+
+  static TelegramNotificationService get instance => TelegramNotificationService.instance;
 }

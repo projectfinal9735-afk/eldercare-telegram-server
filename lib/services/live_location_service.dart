@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 
+import 'abnormal_alert_service.dart';
+
 class LiveLocationService {
   LiveLocationService._();
   static final LiveLocationService instance = LiveLocationService._();
@@ -55,6 +57,12 @@ class LiveLocationService {
       position: position,
       elderName: elderName,
       force: force,
+    );
+
+    await AbnormalAlertService.instance.onLocationUpdated(
+      lat: position.latitude,
+      lng: position.longitude,
+      elderName: elderName,
     );
   }
 
@@ -189,7 +197,11 @@ class LiveLocationService {
     await batch.commit();
   }
 
-  Future<void> setSharingStopped() async {
+  Future<void> setSharingStopped({
+    double? lat,
+    double? lng,
+    String? elderName,
+  }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -204,5 +216,11 @@ class LiveLocationService {
     _lastWrittenPosition = null;
     _lastHistoryAt = null;
     _lastHistoryPosition = null;
+
+    await AbnormalAlertService.instance.onSharingStopped(
+      lat: lat,
+      lng: lng,
+      elderName: elderName,
+    );
   }
 }

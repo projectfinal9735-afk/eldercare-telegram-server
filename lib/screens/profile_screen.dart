@@ -2,7 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../theme/app_colors.dart';
+
 import 'edit_profile_screen.dart';
+import 'change_password_screen.dart';
 
 /// หน้าดูข้อมูลผู้ใช้ที่สมัครไว้ + ปุ่มแก้ไข (มี dialog ยืนยัน)
 class ProfileScreen extends StatelessWidget {
@@ -63,7 +66,7 @@ class ProfileScreen extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('ไม่พบข้อมูลผู้ใช้', style: TextStyle(fontSize: 16)),
+                  const Text('ไม่พบข้อมูลผู้ใช้', style: TextStyle(fontSize: 26)),
                   const SizedBox(height: 12),
                   ElevatedButton.icon(
                     onPressed: () => _confirmEdit(context),
@@ -81,6 +84,8 @@ class ProfileScreen extends StatelessWidget {
         final fullName = (data['fullName'] ?? '').toString();
         final phone = (data['phone'] ?? '').toString();
         final role = (data['role'] ?? '').toString();
+        final relationshipToElder = (data['relationshipToElder'] ?? '').toString();
+        final relationshipToCaregiver = (data['relationshipToCaregiver'] ?? '').toString();
 
         return SafeArea(
           child: ListView(
@@ -88,7 +93,7 @@ class ProfileScreen extends StatelessWidget {
             children: [
               const Text(
                 'ข้อมูลผู้ใช้',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
 
@@ -115,31 +120,77 @@ class ProfileScreen extends StatelessWidget {
                 value: role.isEmpty ? '-' : role,
                 icon: Icons.verified_user,
               ),
+              if (relationshipToElder.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _InfoCard(
+                  title: 'ความสัมพันธ์กับผู้สูงอายุ',
+                  value: relationshipToElder,
+                  icon: Icons.family_restroom,
+                ),
+              ],
+              if (relationshipToCaregiver.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _InfoCard(
+                  title: 'ความสัมพันธ์กับผู้ดูแล',
+                  value: relationshipToCaregiver,
+                  icon: Icons.family_restroom,
+                ),
+              ],
 
               const SizedBox(height: 18),
 
               SizedBox(
-  width: double.infinity,
-  child: ElevatedButton.icon(
-    style: ElevatedButton.styleFrom(
-      backgroundColor: const Color.fromARGB(255, 239, 150, 91), // ✅ สีปุ่ม
-      foregroundColor: Colors.white,     // ✅ สีไอคอน + ตัวหนังสือ
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-      ),
-    ),
-    onPressed: () => _confirmEdit(context),
-    icon: const Icon(Icons.edit),
-    label: const Padding(
-      padding: EdgeInsets.symmetric(vertical: 14),
-      child: Text(
-        'แก้ไขข้อมูล',
-        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-      ),
-    ),
-  ),
-),
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.card,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                  onPressed: () => _confirmEdit(context),
+                  icon: const Icon(Icons.edit),
+                  label: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 14),
+                    child: Text(
+                      'แก้ไขข้อมูล',
+                      style: TextStyle(fontSize: 26, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.card,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ChangePasswordScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.lock_reset),
+                  label: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 14),
+                    child: Text(
+                      'เปลี่ยนรหัสผ่าน',
+                      style: TextStyle(fontSize: 26, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         );
@@ -157,22 +208,22 @@ class _InfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.black12),
+        border: Border.all(color: AppColors.border),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         children: [
-          Icon(icon),
+          Icon(icon, size: 30, color: AppColors.primary),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                Text(title, style: const TextStyle(fontSize: 26, color: AppColors.subtleText)),
                 const SizedBox(height: 4),
-                Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                Text(value, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
               ],
             ),
           ),

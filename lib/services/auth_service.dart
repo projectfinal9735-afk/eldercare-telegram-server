@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 
+import '../firebase_options.dart';
 import 'app_error.dart';
 
 class AuthService {
@@ -33,24 +35,33 @@ class AuthService {
     required String password,
     required String fullName,
     required String phone,
+    required String relationshipToElder,
   }) async {
     final email = _toEmail(identifier);
 
-    final cred = await _auth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+    try {
+      final cred = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
-    await _db.collection('users').doc(cred.user!.uid).set({
-      'uid': cred.user!.uid,
-      'role': 'caregiver',
-      'identifier': _normalizeIdentifier(identifier),
-      'fullName': fullName.trim(),
-      'phone': phone.trim(),
-      'isSearchable': true,
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+      await _db.collection('users').doc(cred.user!.uid).set({
+        'uid': cred.user!.uid,
+        'role': 'caregiver',
+        'identifier': _normalizeIdentifier(identifier),
+        'fullName': fullName.trim(),
+        'phone': phone.trim(),
+        'relationshipToElder': relationshipToElder.trim(),
+        'isSearchable': true,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'email-already-in-use') {
+        throw Exception('ชื่อนี้มีคนใช้ไปแล้ว');
+      }
+      rethrow;
+    }
   }
 
   Future<void> registerElder({
@@ -61,20 +72,99 @@ class AuthService {
   }) async {
     final email = _toEmail(identifier);
 
-    final cred = await _auth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+    try {
+      final cred = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
-    await _db.collection('users').doc(cred.user!.uid).set({
-      'uid': cred.user!.uid,
-      'role': 'elder',
-      'identifier': _normalizeIdentifier(identifier),
-      'fullName': fullName.trim(),
-      'phone': phone.trim(),
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+      await _db.collection('users').doc(cred.user!.uid).set({
+        'uid': cred.user!.uid,
+        'role': 'elder',
+        'identifier': _normalizeIdentifier(identifier),
+        'fullName': fullName.trim(),
+        'phone': phone.trim(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'email-already-in-use') {
+        throw Exception('ชื่อนี้มีคนใช้ไปแล้ว');
+      }
+      rethrow;
+    }
+  }
+
+
+  Future<void> registerElderByCaregiver({
+    required String identifier,
+    required String password,
+    required String fullName,
+    required String phone,
+    required String relationshipToElder,
+  }) async {
+    final caregiver = _auth.currentUser;
+    if (caregiver == null) {
+      throw FirebaseAuthException(
+        code: 'not-authenticated',
+        message: 'กรุณาเข้าสู่ระบบก่อน',
+      );
+    }
+
+    final normalizedIdentifier = _normalizeIdentifier(identifier);
+    final email = _toEmail(normalizedIdentifier);
+    final appName = 'elder_creator_${DateTime.now().microsecondsSinceEpoch}';
+
+    FirebaseApp? secondaryApp;
+    UserCredential? cred;
+
+    try {
+      secondaryApp = await Firebase.initializeApp(
+        name: appName,
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
+
+      cred = await secondaryAuth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      final elderUid = cred.user!.uid;
+
+      await _db.collection('users').doc(elderUid).set({
+        'uid': elderUid,
+        'role': 'elder',
+        'identifier': normalizedIdentifier,
+        'fullName': fullName.trim(),
+        'phone': phone.trim(),
+        'relationshipToElder': relationshipToElder.trim(),
+        'caregiverIds': [caregiver.uid],
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      await _db.collection('users').doc(caregiver.uid).set({
+        'elderIds': FieldValue.arrayUnion([elderUid]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      await secondaryAuth.signOut();
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'email-already-in-use') {
+        throw Exception('ชื่อนี้มีคนใช้ไปแล้ว');
+      }
+      rethrow;
+    } catch (_) {
+      if (cred?.user?.uid case final createdUid?) {
+        await _db.collection('users').doc(createdUid).delete().catchError((_) {});
+      }
+      rethrow;
+    } finally {
+      if (secondaryApp != null) {
+        await secondaryApp.delete().catchError((_) {});
+      }
+    }
   }
 
   Future<void> signInWithIdentifierEnsureRole({

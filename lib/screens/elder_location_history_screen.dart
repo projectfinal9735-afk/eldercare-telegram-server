@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+
+import '../theme/app_colors.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -61,20 +63,33 @@ class _ElderLocationHistoryScreenState
         _selectedDay.day,
       );
       final end = start.add(const Duration(days: 1));
-
-      final snap = await _db
+      final historyRef = _db
           .collection('users')
           .doc(widget.elderUid)
-          .collection('location_history')
-          .where(
-            'timestamp',
-            isGreaterThanOrEqualTo: Timestamp.fromDate(start),
-          )
-          .where('timestamp', isLessThan: Timestamp.fromDate(end))
-          .orderBy('timestamp')
-          .get();
+          .collection('location_history');
 
-      final items = snap.docs
+      List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+      try {
+        final snap = await historyRef
+            .where(
+              'timestamp',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(start),
+            )
+            .where('timestamp', isLessThan: Timestamp.fromDate(end))
+            .orderBy('timestamp')
+            .get();
+        docs = snap.docs;
+      } on FirebaseException {
+        final fallbackSnap = await historyRef.orderBy('timestamp').get();
+        docs = fallbackSnap.docs.where((doc) {
+          final ts = doc.data()['timestamp'];
+          if (ts is! Timestamp) return false;
+          final when = ts.toDate();
+          return !when.isBefore(start) && when.isBefore(end);
+        }).toList();
+      }
+
+      final items = docs
           .map((doc) {
             final data = doc.data();
             final lat = (data['lat'] as num?)?.toDouble();
@@ -93,7 +108,8 @@ class _ElderLocationHistoryScreenState
             );
           })
           .whereType<_HistoryPoint>()
-          .toList();
+          .toList()
+        ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
       if (!mounted) return;
       setState(() {
@@ -104,7 +120,9 @@ class _ElderLocationHistoryScreenState
       if (items.isNotEmpty) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          _fitMap(_filteredItems);
+          try {
+            _fitMap(_filteredItems);
+          } catch (_) {}
         });
       }
     } on FirebaseException catch (e) {
@@ -247,7 +265,8 @@ class _ElderLocationHistoryScreenState
         backgroundColor: const Color.fromARGB(255, 239, 150, 91),
         title: Text('ประวัติหมุด - ${widget.elderName}'),
       ),
-      body: Column(
+      body: SafeArea(
+        child: Column(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -257,7 +276,7 @@ class _ElderLocationHistoryScreenState
                   child: Text(
                     'วันที่ ${_formatDate(_selectedDay)}',
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 26,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -266,6 +285,9 @@ class _ElderLocationHistoryScreenState
                   onPressed: _pickDate,
                   icon: const Icon(Icons.calendar_month),
                   label: const Text('เลือกวันที่'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 48),
+                  ),
                 ),
               ],
             ),
@@ -299,7 +321,7 @@ class _ElderLocationHistoryScreenState
                 borderRadius: BorderRadius.circular(16),
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.black12),
+                    border: Border.all(color: AppColors.border),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: _loading
@@ -351,8 +373,8 @@ class _ElderLocationHistoryScreenState
                                               child: Text(
                                                 '${i + 1}',
                                                 style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 10,
+                                                  color: AppColors.card,
+                                                  fontSize: 14,
                                                   fontWeight: FontWeight.bold,
                                                 ),
                                               ),
@@ -372,7 +394,7 @@ class _ElderLocationHistoryScreenState
                                 if (!_loading && filteredItems.isEmpty)
                                   const Center(
                                     child: ColoredBox(
-                                      color: Colors.white,
+                                      color: AppColors.card,
                                       child: Padding(
                                         padding: EdgeInsets.all(12),
                                         child: Text(
@@ -396,7 +418,7 @@ class _ElderLocationHistoryScreenState
                         padding: EdgeInsets.all(16),
                         child: Text(
                           'ถ้ายังไม่ขึ้นข้อมูล แปลว่ายังไม่มีการบันทึก location_history ของผู้สูงอายุ',
-                          style: TextStyle(color: Colors.black54),
+                          style: TextStyle(color: AppColors.subtleText),
                         ),
                       )
                     : ListView.separated(
@@ -408,7 +430,7 @@ class _ElderLocationHistoryScreenState
                           return Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              border: Border.all(color: Colors.black12),
+                              border: Border.all(color: AppColors.border),
                               borderRadius: BorderRadius.circular(14),
                             ),
                             child: Row(
@@ -454,6 +476,7 @@ class _ElderLocationHistoryScreenState
                       ),
           ),
         ],
+      ),
       ),
     );
   }

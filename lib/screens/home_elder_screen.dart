@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'profile_screen.dart';
 import 'route_search_screen.dart';
+import '../theme/app_colors.dart';
 import 'add_caregiver_screen.dart';
 import '../root.dart';
 
@@ -39,16 +41,16 @@ class _HomeElderScreenState extends State<HomeElderScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color.fromARGB(255, 239, 150, 91),
+        backgroundColor: AppColors.primary,
         title: Text(
           _title,
-          style: const TextStyle(color: Colors.white), // ✅ ตัวหนังสือขาว
+          style: const TextStyle(color: AppColors.card), // ✅ ตัวหนังสือขาว
         ),
         iconTheme: const IconThemeData(
-          color: Colors.white, // ✅ ไอคอนฝั่งซ้าย (ถ้ามี)
+          color: AppColors.card, // ✅ ไอคอนฝั่งซ้าย (ถ้ามี)
         ),
         actionsIconTheme: const IconThemeData(
-          color: Colors.white, // ✅ ไอคอนฝั่งขวา (logout)
+          color: AppColors.card, // ✅ ไอคอนฝั่งขวา (logout)
         ),
         actions: [
           IconButton(
@@ -91,14 +93,14 @@ class _BottomActionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = Colors.white; // ✅ บังคับให้เป็นสีขาว
+    final color = AppColors.card;
 
     return SafeArea(
       top: false,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: const Color.fromARGB(255, 239, 150, 91), // ✅ พื้นหลังฟ้า (เหมือนปุ่มไป)
+          color: AppColors.primary,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.12),
@@ -109,21 +111,21 @@ class _BottomActionBar extends StatelessWidget {
         ),
         child: Row(
           children: [
-            _button(
+            _NavActionItem(
               icon: Icons.person_add_alt_1,
               label: 'ผู้ดูแล',
               selected: currentIndex == 0,
               color: color,
               onTap: () => onSelect(0),
             ),
-            _button(
+            _NavActionItem(
               icon: Icons.map,
               label: 'แผนที่',
               selected: currentIndex == 1,
               color: color,
               onTap: () => onSelect(1),
             ),
-            _button(
+            _NavActionItem(
               icon: Icons.person,
               label: 'โปรไฟล์',
               selected: currentIndex == 2,
@@ -135,44 +137,100 @@ class _BottomActionBar extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _button({
-    required IconData icon,
-    required String label,
-    required bool selected,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
+class _NavActionItem extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _NavActionItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  State<_NavActionItem> createState() => _NavActionItemState();
+}
+
+class _NavActionItemState extends State<_NavActionItem> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (!mounted) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = widget.selected;
+    final opacity = selected ? 1.0 : 0.72;
+
     return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 30,
-                color: selected ? color : color.withOpacity(0.7),
+      child: AnimatedScale(
+        scale: _pressed ? 0.96 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOutCubic,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            widget.onTap();
+          },
+          onTapDown: (_) => _setPressed(true),
+          onTapUp: (_) => _setPressed(false),
+          onTapCancel: () => _setPressed(false),
+          borderRadius: BorderRadius.circular(14),
+          splashColor: AppColors.card.withOpacity(0.08),
+          highlightColor: Colors.transparent,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              decoration: BoxDecoration(
+                color: selected ? AppColors.card.withOpacity(0.12) : Colors.transparent,
+                borderRadius: BorderRadius.circular(14),
               ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                  color: selected ? color : color.withOpacity(0.7),
-                ),
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedScale(
+                    scale: selected ? 1.08 : 1.0,
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutBack,
+                    child: Icon(
+                      widget.icon,
+                      size: 34,
+                      color: widget.color.withOpacity(opacity),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                      color: widget.color.withOpacity(opacity),
+                    ),
+                    child: Text(widget.label),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 }
+
 
 
 
