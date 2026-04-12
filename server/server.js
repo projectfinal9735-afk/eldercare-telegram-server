@@ -26,8 +26,7 @@ function normalizeServiceAccount(raw) {
 
   const normalized = { ...raw };
   if (typeof normalized.private_key === "string") {
-    normalized.private_key = normalized.private_key.replace(/\n/g, "
-");
+    normalized.private_key = normalized.private_key.replace(/\n/g, "");
   }
   return normalized;
 }
