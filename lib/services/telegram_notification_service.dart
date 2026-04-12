@@ -47,10 +47,28 @@ class TelegramNotificationService {
       return;
     }
 
+    final caregiverDocs = await Future.wait(
+      caregiverIds.map((id) => _db.collection('users').doc(id).get()),
+    );
+
+    final recipients = caregiverDocs
+        .where((doc) => doc.exists)
+        .map((doc) => <String, dynamic>{
+              'caregiverId': doc.id,
+              'lineUserId': (doc.data()?['lineUserId'] ?? '').toString(),
+              'lineConnected': (doc.data()?['lineConnected'] ?? false) == true,
+            })
+        .where((item) =>
+            (item['lineConnected'] as bool) == true &&
+            (item['lineUserId'] as String).isNotEmpty)
+        .toList();
+
     final payload = <String, dynamic>{
       'elderId': uid,
       'elderName': (elderData['fullName'] ?? '').toString(),
       'caregiverIds': caregiverIds,
+      'lineUserIds': recipients.map((e) => e['lineUserId']).toList(),
+      'recipients': recipients,
       'type': type,
       'title': title,
       'body': body,
@@ -69,7 +87,7 @@ class TelegramNotificationService {
         .timeout(_timeout);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('LINE alert failed: ${response.statusCode} ${response.body}');
+      throw Exception('แจ้งเตือนไม่สำเร็จ (${response.statusCode}) ${response.body}');
     }
   }
 }

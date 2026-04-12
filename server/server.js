@@ -19,14 +19,45 @@ app.use(
   }),
 );
 
+function normalizeServiceAccount(raw) {
+  if (!raw || typeof raw !== "object") {
+    throw new Error("Firebase service account is empty or invalid");
+  }
+
+  const normalized = { ...raw };
+  if (typeof normalized.private_key === "string") {
+    normalized.private_key = normalized.private_key.replace(/\n/g, "
+");
+  }
+  return normalized;
+}
+
+function parseServiceAccountString(value) {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) {
+    throw new Error("FIREBASE_SERVICE_ACCOUNT is empty");
+  }
+
+  try {
+    return normalizeServiceAccount(JSON.parse(trimmed));
+  } catch (_jsonError) {
+    try {
+      const decoded = Buffer.from(trimmed, "base64").toString("utf8");
+      return normalizeServiceAccount(JSON.parse(decoded));
+    } catch (_base64Error) {
+      throw new Error("Unable to parse FIREBASE_SERVICE_ACCOUNT as JSON or base64 JSON");
+    }
+  }
+}
+
 function loadServiceAccount() {
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    return parseServiceAccountString(process.env.FIREBASE_SERVICE_ACCOUNT);
   }
 
   const filePath = path.join(__dirname, "serviceAccountKey.json");
   if (fs.existsSync(filePath)) {
-    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+    return normalizeServiceAccount(JSON.parse(fs.readFileSync(filePath, "utf8")));
   }
 
   throw new Error(
@@ -34,14 +65,23 @@ function loadServiceAccount() {
   );
 }
 
-const serviceAccount = loadServiceAccount();
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-}
+let db = null;
+let firebaseReady = false;
+let firebaseInitError = null;
 
-const db = admin.firestore();
+try {
+  const serviceAccount = loadServiceAccount();
+  if (!admin.apps.length) {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+  }
+  db = admin.firestore();
+  firebaseReady = true;
+} catch (error) {
+  firebaseInitError = error;
+  console.error("Firebase init warning:", error?.message || error);
+}
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = "0.0.0.0";
 const LINE_CHANNEL_ACCESS_TOKEN = String(process.env.LINE_CHANNEL_ACCESS_TOKEN || "").trim();
@@ -61,8 +101,46 @@ app.get("/health", (_req, res) => {
     lineAccessTokenConfigured: Boolean(LINE_CHANNEL_ACCESS_TOKEN),
     lineChannelSecretConfigured: Boolean(LINE_CHANNEL_SECRET),
     lineReplyFallbackToPush: LINE_REPLY_FALLBACK_TO_PUSH,
+    firebaseReady,
+    firebaseInitError: firebaseInitError ? String(firebaseInitError.message || firebaseInitError) : null,
   });
 });
+
+
+function requireDb() {
+  if (!db) {
+    throw new Error(firebaseInitError?.message || "Firebase is not initialized");
+  }
+  return db;
+}
+
+function toNonEmptyStrings(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((v) => String(v || "").trim()).filter(Boolean);
+}
+
+function normalizeDirectRecipients(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+      const caregiverId = String(item.caregiverId || item.id || "").trim();
+      const lineUserId = String(item.lineUserId || item.userId || "").trim();
+      const lineConnected = item.lineConnected !== false;
+      if (!lineUserId || !lineConnected) {
+        return null;
+      }
+      return { caregiverId, lineUserId };
+    })
+    .filter(Boolean);
+}
 
 app.post("/line-webhook", async (req, res) => {
   try {
@@ -91,6 +169,8 @@ app.post("/send-alert", async (req, res) => {
       elderId,
       elderName,
       caregiverIds = [],
+      lineUserIds = [],
+      recipients = [],
       type = "alert",
       title = "แจ้งเตือน",
       body = "",
@@ -99,66 +179,103 @@ app.post("/send-alert", async (req, res) => {
       extra = {},
     } = req.body || {};
 
+    const text = buildAlertText({ type, title, body, elderName, lat, lng, extra });
+    const directLineUserIds = toNonEmptyStrings(lineUserIds);
+    const directRecipients = normalizeDirectRecipients(recipients);
+
+    const resolved = new Map();
+    for (const lineUserId of directLineUserIds) {
+      resolved.set(lineUserId, { caregiverId: "", lineUserId, source: "lineUserIds" });
+    }
+    for (const item of directRecipients) {
+      resolved.set(item.lineUserId, {
+        caregiverId: item.caregiverId || "",
+        lineUserId: item.lineUserId,
+        source: "recipients",
+      });
+    }
+
     let resolvedCaregiverIds = Array.isArray(caregiverIds)
       ? caregiverIds.map((v) => String(v || "").trim()).filter(Boolean)
       : [];
 
-    if (resolvedCaregiverIds.length === 0 && elderId) {
-      const elderSnap = await db.collection("users").doc(String(elderId)).get();
-      const elderData = elderSnap.data() || {};
-      const raw = elderData.caregiverIds;
+    if (resolved.size === 0) {
+      const firestore = requireDb();
 
-      if (Array.isArray(raw)) {
-        resolvedCaregiverIds = raw.map((v) => String(v || "").trim()).filter(Boolean);
-      } else if (typeof raw === "string" && raw.trim()) {
-        resolvedCaregiverIds = [raw.trim()];
+      if (resolvedCaregiverIds.length === 0 && elderId) {
+        const elderSnap = await firestore.collection("users").doc(String(elderId)).get();
+        const elderData = elderSnap.data() || {};
+        const raw = elderData.caregiverIds;
+
+        if (Array.isArray(raw)) {
+          resolvedCaregiverIds = raw.map((v) => String(v || "").trim()).filter(Boolean);
+        } else if (typeof raw === "string" && raw.trim()) {
+          resolvedCaregiverIds = [raw.trim()];
+        }
+      }
+
+      if (resolvedCaregiverIds.length === 0) {
+        return res.status(400).json({ ok: false, error: "caregiverIds or recipients required" });
+      }
+
+      const caregiverDocs = await Promise.all(
+        resolvedCaregiverIds.map(async (id) => ({ id, snap: await firestore.collection("users").doc(id).get() })),
+      );
+
+      for (const item of caregiverDocs) {
+        const doc = item.snap;
+        if (!doc.exists) {
+          continue;
+        }
+        const data = doc.data() || {};
+        const lineUserId = String(data.lineUserId || "").trim();
+        const connected = data.lineConnected === true;
+        if (!lineUserId || !connected) {
+          continue;
+        }
+        resolved.set(lineUserId, { caregiverId: item.id, lineUserId, source: "firestore" });
+      }
+
+      try {
+        await firestore.collection("line_alert_logs").add({
+          elderId: elderId || null,
+          elderName: elderName || "",
+          caregiverIds: resolvedCaregiverIds,
+          type,
+          title,
+          body,
+          lat: lat ?? null,
+          lng: lng ?? null,
+          extra: extra || {},
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (logError) {
+        console.error("line_alert_logs warning:", logError?.message || logError);
       }
     }
 
-    if (resolvedCaregiverIds.length === 0) {
-      return res.status(400).json({ ok: false, error: "caregiverIds required" });
+    const targets = Array.from(resolved.values());
+    if (targets.length === 0) {
+      return res.status(400).json({ ok: false, error: "no connected LINE recipients" });
     }
-
-    const caregiverDocs = await Promise.all(
-      resolvedCaregiverIds.map(async (id) => ({ id, snap: await db.collection("users").doc(id).get() })),
-    );
-
-    const text = buildAlertText({ type, title, body, elderName, lat, lng, extra });
-
-    await db.collection("line_alert_logs").add({
-      elderId: elderId || null,
-      elderName: elderName || "",
-      caregiverIds: resolvedCaregiverIds,
-      type,
-      title,
-      body,
-      lat: lat ?? null,
-      lng: lng ?? null,
-      extra: extra || {},
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
 
     let sent = 0;
     const skipped = [];
-
-    for (const item of caregiverDocs) {
-      const doc = item.snap;
-      if (!doc.exists) {
-        skipped.push({ caregiverId: item.id, reason: "not_found" });
-        continue;
+    for (const target of targets) {
+      try {
+        await pushMessage(target.lineUserId, text);
+        sent += 1;
+      } catch (error) {
+        skipped.push({
+          caregiverId: target.caregiverId || null,
+          lineUserId: target.lineUserId,
+          reason: error?.message || "push_failed",
+        });
       }
+    }
 
-      const data = doc.data() || {};
-      const lineUserId = String(data.lineUserId || "").trim();
-      const connected = data.lineConnected === true;
-
-      if (!lineUserId || !connected) {
-        skipped.push({ caregiverId: item.id, reason: "line_not_connected" });
-        continue;
-      }
-
-      await pushMessage(lineUserId, text);
-      sent += 1;
+    if (sent === 0) {
+      return res.status(500).json({ ok: false, error: "push_failed", skipped });
     }
 
     return res.json({ ok: true, sent, skipped });
@@ -280,7 +397,7 @@ async function handleLineEvent(event) {
 }
 
 async function linkCaregiverLine({ caregiverUid, userId, profile }) {
-  const caregiverRef = db.collection("users").doc(caregiverUid);
+  const caregiverRef = requireDb().collection("users").doc(caregiverUid);
   const caregiverSnap = await caregiverRef.get();
   if (!caregiverSnap.exists) {
     return { ok: false, message: "ไม่พบบัญชีผู้ดูแลนี้ในระบบ" };
@@ -319,7 +436,7 @@ async function linkCaregiverLine({ caregiverUid, userId, profile }) {
 }
 
 async function buildStatusText(userId) {
-  const snaps = await db.collection("users").where("lineUserId", "==", userId).limit(5).get();
+  const snaps = await requireDb().collection("users").where("lineUserId", "==", userId).limit(5).get();
   if (snaps.empty) {
     return "LINE นี้ยังไม่ได้เชื่อมกับบัญชีผู้ดูแล\nหากต้องการเชื่อม ให้พิมพ์ LINK caregiver_<uid>";
   }
@@ -335,12 +452,12 @@ async function buildStatusText(userId) {
 }
 
 async function unlinkByLineUserId(lineUserId) {
-  const snaps = await db.collection("users").where("lineUserId", "==", lineUserId).get();
+  const snaps = await requireDb().collection("users").where("lineUserId", "==", lineUserId).get();
   if (snaps.empty) {
     return 0;
   }
 
-  const batch = db.batch();
+  const batch = requireDb().batch();
   for (const doc of snaps.docs) {
     batch.set(
       doc.ref,
@@ -360,12 +477,12 @@ async function unlinkByLineUserId(lineUserId) {
 }
 
 async function saveLineProfileToLinkedUsers(lineUserId, profile) {
-  const snaps = await db.collection("users").where("lineUserId", "==", lineUserId).limit(5).get();
+  const snaps = await requireDb().collection("users").where("lineUserId", "==", lineUserId).limit(5).get();
   if (snaps.empty) {
     return;
   }
 
-  const batch = db.batch();
+  const batch = requireDb().batch();
   for (const doc of snaps.docs) {
     batch.set(
       doc.ref,
