@@ -25,9 +25,13 @@ function normalizeServiceAccount(raw) {
   }
 
   const normalized = { ...raw };
+
   if (typeof normalized.private_key === "string") {
-    normalized.private_key = normalized.private_key.replace(/\n/g, "");
+    normalized.private_key = normalized.private_key
+      .replace(/\\n/g, "\n")
+      .replace(/\r\n/g, "\n");
   }
+
   return normalized;
 }
 
@@ -50,17 +54,25 @@ function parseServiceAccountString(value) {
 }
 
 function loadServiceAccount() {
+  const secretFilePath = "/etc/secrets/serviceAccountKey.json";
+  if (fs.existsSync(secretFilePath)) {
+    console.log(`Loaded Firebase credentials from secret file: ${secretFilePath}`);
+    return normalizeServiceAccount(JSON.parse(fs.readFileSync(secretFilePath, "utf8")));
+  }
+
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    console.log("Loaded Firebase credentials from FIREBASE_SERVICE_ACCOUNT");
     return parseServiceAccountString(process.env.FIREBASE_SERVICE_ACCOUNT);
   }
 
-  const filePath = path.join(__dirname, "serviceAccountKey.json");
-  if (fs.existsSync(filePath)) {
-    return normalizeServiceAccount(JSON.parse(fs.readFileSync(filePath, "utf8")));
+  const localFilePath = path.join(__dirname, "serviceAccountKey.json");
+  if (fs.existsSync(localFilePath)) {
+    console.log(`Loaded Firebase credentials from local file: ${localFilePath}`);
+    return normalizeServiceAccount(JSON.parse(fs.readFileSync(localFilePath, "utf8")));
   }
 
   throw new Error(
-    "Missing Firebase credentials. Set FIREBASE_SERVICE_ACCOUNT or provide serviceAccountKey.json",
+    "Missing Firebase credentials. Add Render secret file /etc/secrets/serviceAccountKey.json, set FIREBASE_SERVICE_ACCOUNT, or provide local serviceAccountKey.json",
   );
 }
 
@@ -372,7 +384,7 @@ async function handleLineEvent(event) {
       replyToken: event.replyToken,
       userId,
       text:
-        "รับข้อความแล้ว ✅\nหากต้องการเชื่อมบัญชีผู้ดูแล ให้พิมพ์ LINK caregiver_<uid>\nพิมพ์ STATUS เพื่อตรวจสอบสถานะ",
+        "รับข้อความแล้ว ✅\nหากต้องการเชื่อมบัญชีคนใกล้ชิด ให้พิมพ์ LINK caregiver_<uid>\nพิมพ์ STATUS เพื่อตรวจสอบสถานะ",
     });
     return;
   }
@@ -399,12 +411,12 @@ async function linkCaregiverLine({ caregiverUid, userId, profile }) {
   const caregiverRef = requireDb().collection("users").doc(caregiverUid);
   const caregiverSnap = await caregiverRef.get();
   if (!caregiverSnap.exists) {
-    return { ok: false, message: "ไม่พบบัญชีผู้ดูแลนี้ในระบบ" };
+    return { ok: false, message: "ไม่พบบัญชีคนใกล้ชิดนี้ในระบบ" };
   }
 
   const caregiverData = caregiverSnap.data() || {};
   if (String(caregiverData.role || "") !== "caregiver") {
-    return { ok: false, message: "บัญชีนี้ไม่ใช่ผู้ดูแล" };
+    return { ok: false, message: "บัญชีนี้ไม่ใช่บัญชีคนใกล้ชิด" };
   }
 
   const displayName = String(caregiverData.fullName || caregiverData.identifier || caregiverUid).trim();
@@ -430,14 +442,14 @@ async function linkCaregiverLine({ caregiverUid, userId, profile }) {
   console.log(`Linked caregiver ${caregiverUid} with LINE user ${userId}`);
   return {
     ok: true,
-    message: `เชื่อม LINE สำเร็จแล้ว ✅\nผู้ดูแล: ${displayName}\nหลังจากนี้บัญชีนี้จะได้รับการแจ้งเตือนของผู้สูงอายุ`,
+    message: `เชื่อม LINE สำเร็จแล้ว ✅\nคนใกล้ชิด: ${displayName}\nหลังจากนี้บัญชีนี้จะได้รับการแจ้งเตือนของผู้สูงอายุ`,
   };
 }
 
 async function buildStatusText(userId) {
   const snaps = await requireDb().collection("users").where("lineUserId", "==", userId).limit(5).get();
   if (snaps.empty) {
-    return "LINE นี้ยังไม่ได้เชื่อมกับบัญชีผู้ดูแล\nหากต้องการเชื่อม ให้พิมพ์ LINK caregiver_<uid>";
+    return "LINE นี้ยังไม่ได้เชื่อมกับบัญชีคนใกล้ชิด\nหากต้องการเชื่อม ให้พิมพ์ LINK caregiver_<uid>";
   }
 
   const names = snaps.docs
@@ -447,7 +459,7 @@ async function buildStatusText(userId) {
     })
     .filter(Boolean);
 
-  return `เชื่อมต่อแล้ว ✅\nบัญชีผู้ดูแล: ${names.join(", ")}\nหากต้องการยกเลิกเชื่อมต่อ ให้พิมพ์ UNLINK`;
+  return `เชื่อมต่อแล้ว ✅\nบัญชีคนใกล้ชิด: ${names.join(", ")}\nหากต้องการยกเลิกเชื่อมต่อ ให้พิมพ์ UNLINK`;
 }
 
 async function unlinkByLineUserId(lineUserId) {
@@ -500,7 +512,7 @@ async function saveLineProfileToLinkedUsers(lineUserId, profile) {
 function buildWelcomeText() {
   return [
     "สวัสดีจาก ElderCare LINE OA 👋",
-    "หากต้องการเชื่อมบัญชีผู้ดูแล ให้พิมพ์",
+    "หากต้องการเชื่อมบัญชีคนใกล้ชิด ให้พิมพ์",
     "LINK caregiver_<uid>",
     "",
     "คำสั่งที่ใช้ได้:",
