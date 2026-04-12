@@ -2807,104 +2807,226 @@ class CaregiverProfileTab extends StatelessWidget {
                   top: false,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: AppColors.border),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'การแจ้งเตือน LINE',
-                                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                connected
-                                    ? 'เชื่อมต่อแล้ว${chatId.isNotEmpty ? ' • userId: $chatId' : ''}'
-                                    : 'ยังไม่ได้เชื่อมต่อ LINE',
-                                style: TextStyle(
-                                  color: connected ? Colors.green.shade700 : AppColors.subtleText,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: AppColors.background,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'LINE OA: ${TelegramConnectService.officialAccountId}',
-                                      style: const TextStyle(fontWeight: FontWeight.w700),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    SelectableText(
-                                      'ข้อความเชื่อม: $linkMessage',
-                                      style: const TextStyle(color: AppColors.subtleText),
-                                    ),
-                                    if (connected && lineDisplayName.isNotEmpty) ...[
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        'ชื่อบน LINE: $lineDisplayName',
-                                        style: const TextStyle(color: AppColors.subtleText),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  onPressed: () => _connectTelegram(context),
-                                  icon: const Icon(Icons.send),
-                                  label: Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                    child: Text(connected ? 'เชื่อมใหม่อีกครั้ง' : 'เชื่อม LINE'),
-                                  ),
-                                ),
-                              ),
-                              if (connected) ...[
-                                const SizedBox(height: 8),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: OutlinedButton.icon(
-                                    onPressed: () => _disconnectTelegram(context),
-                                    icon: const Icon(Icons.link_off),
-                                    label: const Padding(
-                                      padding: EdgeInsets.symmetric(vertical: 12),
-                                      child: Text('ยกเลิกเชื่อมต่อ LINE'),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                              const SizedBox(height: 6),
-                              Text(
-                                connected
-                                    ? 'หากยกเลิกเชื่อมต่อ ระบบจะหยุดส่งการแจ้งเตือน LINE ไปยังบัญชีนี้'
-                                    : 'เมื่อกดปุ่ม ระบบจะเปิด LINE พร้อมข้อความเชื่อมบัญชีให้ส่งหา OA 1 ครั้ง',
-                                style: const TextStyle(fontSize: 14, color: AppColors.subtleText),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                    child: _DraggableLineConnectCard(
+                      connected: connected,
+                      chatId: chatId,
+                      lineDisplayName: lineDisplayName,
+                      linkMessage: linkMessage,
+                      onConnect: () => _connectTelegram(context),
+                      onDisconnect: connected ? () => _disconnectTelegram(context) : null,
                     ),
                   ),
                 );
               },
             ),
+        ],
+      ),
+    );
+  }
+}
+
+
+class _DraggableLineConnectCard extends StatefulWidget {
+  const _DraggableLineConnectCard({
+    required this.connected,
+    required this.chatId,
+    required this.lineDisplayName,
+    required this.linkMessage,
+    required this.onConnect,
+    required this.onDisconnect,
+  });
+
+  final bool connected;
+  final String chatId;
+  final String lineDisplayName;
+  final String linkMessage;
+  final VoidCallback onConnect;
+  final VoidCallback? onDisconnect;
+
+  @override
+  State<_DraggableLineConnectCard> createState() => _DraggableLineConnectCardState();
+}
+
+class _DraggableLineConnectCardState extends State<_DraggableLineConnectCard> {
+  static const double _collapsedHeight = 164;
+  static const double _expandedHeight = 350;
+  static const double _dragSensitivity = 1.0;
+
+  late double _currentHeight;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentHeight = _collapsedHeight;
+  }
+
+  void _handleDragUpdate(DragUpdateDetails details) {
+    setState(() {
+      _currentHeight = (_currentHeight - (details.delta.dy * _dragSensitivity))
+          .clamp(_collapsedHeight, _expandedHeight);
+    });
+  }
+
+  void _handleDragEnd(DragEndDetails details) {
+    final halfway = (_collapsedHeight + _expandedHeight) / 2;
+    setState(() {
+      _currentHeight = _currentHeight >= halfway ? _expandedHeight : _collapsedHeight;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final connected = widget.connected;
+    final statusText = connected
+        ? 'เชื่อมต่อแล้ว${widget.chatId.isNotEmpty ? ' • userId: ${widget.chatId}' : ''}'
+        : 'ยังไม่ได้เชื่อมต่อ LINE';
+    final helperText = connected
+        ? 'ลากแถบบนลงเพื่อย่อกล่องนี้ หรือยกเลิกเชื่อมต่อ LINE ได้จากปุ่มด้านล่าง'
+        : 'ลากแถบบนขึ้นเพื่อดูรายละเอียดการเชื่อม LINE เพิ่มเติม';
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      height: _currentHeight,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onVerticalDragUpdate: _handleDragUpdate,
+            onVerticalDragEnd: _handleDragEnd,
+            onTap: () {
+              setState(() {
+                _currentHeight = _currentHeight == _collapsedHeight
+                    ? _expandedHeight
+                    : _collapsedHeight;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+              child: Column(
+                children: [
+                  Container(
+                    width: 46,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade400,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'การแจ้งเตือน LINE',
+                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      Icon(
+                        _currentHeight == _collapsedHeight
+                            ? Icons.keyboard_arrow_up
+                            : Icons.keyboard_arrow_down,
+                        color: AppColors.subtleText,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      statusText,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: connected ? Colors.green.shade700 : AppColors.subtleText,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(18)),
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'LINE OA: ${TelegramConnectService.officialAccountId}',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 6),
+                          SelectableText(
+                            'ข้อความเชื่อม: ${widget.linkMessage}',
+                            style: const TextStyle(color: AppColors.subtleText),
+                          ),
+                          if (connected && widget.lineDisplayName.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              'ชื่อบน LINE: ${widget.lineDisplayName}',
+                              style: const TextStyle(color: AppColors.subtleText),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: widget.onConnect,
+                        icon: const Icon(Icons.send),
+                        label: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Text(connected ? 'เชื่อมใหม่อีกครั้ง' : 'เชื่อม LINE'),
+                        ),
+                      ),
+                    ),
+                    if (widget.onDisconnect != null) ...[
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: widget.onDisconnect,
+                          icon: const Icon(Icons.link_off),
+                          label: const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: Text('ยกเลิกเชื่อมต่อ LINE'),
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    Text(
+                      helperText,
+                      style: const TextStyle(fontSize: 13, color: AppColors.subtleText),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
