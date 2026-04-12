@@ -131,7 +131,7 @@ class ProfileScreen extends StatelessWidget {
               if (relationshipToCaregiver.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 _InfoCard(
-                  title: 'ความสัมพันธ์กับผู้ดูแล',
+                  title: 'ความสัมพันธ์กับคนใกล้ชิด',
                   value: relationshipToCaregiver,
                   icon: Icons.family_restroom,
                 ),

@@ -44,7 +44,7 @@ ButtonStyle _elderOutlinedButtonStyle({double radius = 22}) {
 }
 
 
-/// หน้า Elder: แอดเพื่อนผู้ดูแล (Caregiver) แบบ "ส่งคำขอ" แล้วให้ฝั่งผู้ดูแลกดยอมรับ/ปฏิเสธ
+/// หน้า Elder: แอดเพื่อนคนใกล้ชิด (Caregiver) แบบ "ส่งคำขอ" แล้วให้ฝั่งคนใกล้ชิดกดยอมรับ/ปฏิเสธ
 ///
 /// โครงสร้างข้อมูล:
 /// - users/{elderUid}.caregiverIds = [caregiverUid, ...]        // เฉพาะที่ "ยอมรับแล้ว"
@@ -108,7 +108,7 @@ class _AddCaregiverScreenState extends State<AddCaregiverScreen> {
 
     final keyword = _searchCtl.text.trim();
     if (keyword.isEmpty) {
-      _snack('กรุณากรอกชื่อผู้ใช้ผู้ดูแล');
+      _snack('กรุณากรอกชื่อผู้ใช้คนใกล้ชิด');
       return;
     }
 
@@ -133,7 +133,7 @@ class _AddCaregiverScreenState extends State<AddCaregiverScreen> {
           _found = null;
           _foundUid = null;
         });
-        _snack('ไม่พบผู้ดูแลที่ใช้ชื่อผู้ใช้นี้');
+        _snack('ไม่พบคนใกล้ชิดที่ใช้ชื่อผู้ใช้นี้');
         return;
       }
 
@@ -172,23 +172,23 @@ setState(() {
     }
     final caregiverUid = _foundUid;
     if (caregiverUid == null) {
-      _snack('กรุณาค้นหาผู้ดูแลก่อน');
+      _snack('กรุณาค้นหาคนใกล้ชิดก่อน');
       return;
     }
 
-    // อนุญาตให้ผู้สูงอายุมีผู้ดูแลได้ครั้งละ 1 คนเท่านั้น
+    // อนุญาตให้ผู้สูงอายุมีคนใกล้ชิดได้ครั้งละ 1 คนเท่านั้น
     final elderDoc = await _db.collection('users').doc(me.uid).get();
     final elderData = elderDoc.data() ?? <String, dynamic>{};
     final acceptedIds =
         (elderData['caregiverIds'] as List<dynamic>?)?.map((e) => e.toString()).where((e) => e.isNotEmpty).toList() ?? const <String>[];
 
     if (acceptedIds.contains(caregiverUid)) {
-      _snack('ผู้ดูแลคนนี้ถูกเพิ่มแล้ว');
+      _snack('คนใกล้ชิดคนนี้ถูกเพิ่มแล้ว');
       return;
     }
 
     if (acceptedIds.isNotEmpty) {
-      _snack('มีผู้ดูแลอยู่แล้ว กรุณาลบผู้ดูแลเดิมก่อน');
+      _snack('มีคนใกล้ชิดอยู่แล้ว กรุณาลบคนใกล้ชิดเดิมก่อน');
       return;
     }
 
@@ -210,7 +210,7 @@ setState(() {
 
       if (!mounted) return;
       setState(() => _foundRequestStatus = 'pending');
-      _snack('ส่งคำขอไปยังผู้ดูแลแล้ว');
+      _snack('ส่งคำขอไปยังคนใกล้ชิดแล้ว');
     } on FirebaseException catch (e) {
       _snack(e.message ?? 'ส่งคำขอไม่สำเร็จ');
     }
@@ -244,8 +244,8 @@ setState(() {
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: const Text('ลบผู้ดูแล'),
-      content: const Text('ต้องการลบผู้ดูแลคนนี้ออกใช่หรือไม่?'),
+      title: const Text('ลบคนใกล้ชิด'),
+      content: const Text('ต้องการลบคนใกล้ชิดคนนี้ออกใช่หรือไม่?'),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
         ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('ลบ')),
@@ -297,7 +297,7 @@ setState(() {
         _foundRequestStatus = 'canceled';
       }
     });
-    _snack('ลบผู้ดูแลแล้ว');
+    _snack('ลบคนใกล้ชิดแล้ว');
   } on FirebaseException catch (e) {
     _snack(e.message ?? 'ลบไม่สำเร็จ');
   }
@@ -326,7 +326,7 @@ setState(() {
             children: [
               const Expanded(
                 child: Text(
-                  'เพิ่มผู้ดูแล',
+                  'เพิ่มคนใกล้ชิด',
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
                 ),
               ),
@@ -343,7 +343,7 @@ setState(() {
             textInputAction: TextInputAction.search,
             onSubmitted: (_) => _search(),
             decoration: InputDecoration(
-              labelText: 'ชื่อผู้ใช้ผู้ดูแล (username)',
+              labelText: 'ชื่อผู้ใช้คนใกล้ชิด (username)',
               prefixIcon: const Icon(Icons.search),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
             ),
@@ -414,7 +414,7 @@ setState(() {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'คำขอที่ส่งแล้ว (รอผู้ดูแลยอมรับ)',
+              'คำขอที่ส่งแล้ว (รอคนใกล้ชิดยอมรับ)',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 10),
@@ -456,7 +456,7 @@ setState(() {
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: 14),
             child: Text(
-              'ยังไม่มีผู้ดูแลที่เพิ่มไว้\nให้ค้นหาและกด “เพิ่มผู้ดูแล” ด้านบน',
+              'ยังไม่มีคนใกล้ชิดที่เพิ่มไว้\nให้ค้นหาและกด “เพิ่มคนใกล้ชิด” ด้านบน',
               textAlign: TextAlign.center,
               style: TextStyle(color: AppColors.subtleText),
             ),
@@ -468,7 +468,7 @@ setState(() {
           children: [
             const SizedBox(height: 12),
             const Text(
-              'ผู้ดูแลของฉัน',
+              'คนใกล้ชิดของฉัน',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 10),
@@ -500,7 +500,7 @@ setState(() {
             _myCaregivers(),
             const SizedBox(height: 24),
             const Text(
-              'หมายเหตุ: ผู้ดูแลต้องกด “ยอมรับ” ก่อนถึงจะถูกเพิ่มเป็นผู้ดูแลของคุณ',
+              'หมายเหตุ: คนใกล้ชิดต้องกด “ยอมรับ” ก่อนถึงจะถูกเพิ่มเป็นคนใกล้ชิดของคุณ',
               style: TextStyle(fontSize: 14, color: AppColors.subtleText),
             ),
           ],
@@ -543,7 +543,7 @@ class _FoundCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('พบผู้ดูแล', style: TextStyle(fontWeight: FontWeight.w700)),
+          const Text('พบคนใกล้ชิด', style: TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           _kv('ชื่อผู้ใช้', identifier.isEmpty ? '-' : identifier),
           _kv('ชื่อ-นามสกุล', fullName.isEmpty ? '-' : fullName),
@@ -561,21 +561,21 @@ class _FoundCard extends StatelessWidget {
               icon: const Icon(Icons.send),
               label: const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text('ส่งคำขอเป็นผู้ดูแล'),
+                child: Text('ส่งคำขอเป็นคนใกล้ชิด'),
               ),
             ),
           ),
           if (isPending) ...[
             const SizedBox(height: 8),
             const Text(
-              'รอผู้ดูแลกดยอมรับ',
+              'รอคนใกล้ชิดกดยอมรับ',
               style: TextStyle(color: AppColors.subtleText),
             ),
           ],
           if (isRejected) ...[
             const SizedBox(height: 8),
             const Text(
-              'ผู้ดูแลปฏิเสธแล้ว (สามารถส่งคำขอใหม่ได้)',
+              'คนใกล้ชิดปฏิเสธแล้ว (สามารถส่งคำขอใหม่ได้)',
               style: TextStyle(color: AppColors.subtleText),
             ),
           ],
@@ -706,7 +706,7 @@ class _CaregiverTileState extends State<_CaregiverTile> {
     final cleanedPhone = phone.trim();
     if (cleanedPhone.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ยังไม่มีเบอร์โทรของผู้ดูแล')),
+        const SnackBar(content: Text('ยังไม่มีเบอร์โทรของคนใกล้ชิด')),
       );
       return;
     }
@@ -733,7 +733,7 @@ class _CaregiverTileState extends State<_CaregiverTile> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Text('ความสัมพันธ์กับผู้ดูแล'),
+          title: const Text('ความสัมพันธ์กับคนใกล้ชิด'),
           content: DropdownButtonFormField<String>(
             value: selected,
             items: caregiverRelationshipOptions
@@ -776,7 +776,7 @@ class _CaregiverTileState extends State<_CaregiverTile> {
 
     if (saved == true && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('บันทึกความสัมพันธ์กับผู้ดูแลแล้ว')),
+        const SnackBar(content: Text('บันทึกความสัมพันธ์กับคนใกล้ชิดแล้ว')),
       );
     }
   }
@@ -906,7 +906,7 @@ class _CaregiverTileState extends State<_CaregiverTile> {
                   IconButton(
                     onPressed: widget.onRemove,
                     icon: const Icon(Icons.delete_outline),
-                    tooltip: 'ลบผู้ดูแล',
+                    tooltip: 'ลบคนใกล้ชิด',
                     color: AppColors.subtleText,
                   ),
                 ],

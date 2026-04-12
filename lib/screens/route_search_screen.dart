@@ -413,7 +413,7 @@ class _RouteSearchScreenState extends State<RouteSearchScreen> {
       });
       if (!mounted) return;
       setState(() => _sharingLiveLocation = true);
-      _showInlineMessage('กำลังแชร์ตำแหน่งสดให้ผู้ดูแลเห็น', isError: false);
+      _showInlineMessage('กำลังแชร์ตำแหน่งสดให้คนใกล้ชิดเห็น', isError: false);
     } catch (e) {
       _showInlineMessage(AppError.message(e), isError: true);
       _showSnack(AppError.message(e));
@@ -671,10 +671,10 @@ out center tags 80;
 
       if (!mounted) return;
 
-      _showInlineMessage('ส่ง SOS และแจ้งเตือนผู้ดูแลแล้ว');
+      _showInlineMessage('ส่ง SOS และแจ้งเตือนคนใกล้ชิดแล้ว');
 
       if (caregiver == null) {
-        _showSnack('ส่ง SOS แล้ว แต่ยังไม่พบข้อมูลผู้ดูแล');
+        _showSnack('ส่ง SOS แล้ว แต่ยังไม่พบข้อมูลคนใกล้ชิด');
         return;
       }
 
@@ -1107,7 +1107,7 @@ out center tags 80;
               else
                 AppStateCard(
                   icon: _sharingLiveLocation ? Icons.my_location : Icons.location_searching,
-                  message: _sharingLiveLocation ? 'กำลังแชร์ตำแหน่งสดให้ผู้ดูแล' : 'ยังไม่ได้เปิดแชร์ตำแหน่งสด',
+                  message: _sharingLiveLocation ? 'กำลังแชร์ตำแหน่งสดให้คนใกล้ชิด' : 'ยังไม่ได้เปิดแชร์ตำแหน่งสด',
                   actionLabel: _sharingLiveLocation ? 'หยุดแชร์' : 'เริ่มแชร์',
                   onAction: _toggleLiveLocation,
                 ),

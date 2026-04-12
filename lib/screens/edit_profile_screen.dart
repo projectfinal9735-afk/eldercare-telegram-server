@@ -234,7 +234,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   onChanged: (value) {
                     setState(() => _relationshipToCaregiver = value);
                   },
-                  decoration: _dec('ความสัมพันธ์กับผู้ดูแล'),
+                  decoration: _dec('ความสัมพันธ์กับคนใกล้ชิด'),
                   validator: (value) {
                     if ((_role ?? '') == 'elder' && (value == null || value.isEmpty)) {
                       return 'กรุณาเลือกความสัมพันธ์';

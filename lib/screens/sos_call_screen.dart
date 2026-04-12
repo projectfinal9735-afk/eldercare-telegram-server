@@ -50,7 +50,7 @@ class _SosCallScreenState extends State<SosCallScreen> {
     if (phone.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ไม่พบเบอร์โทรของผู้ดูแล')),
+        const SnackBar(content: Text('ไม่พบเบอร์โทรของคนใกล้ชิด')),
       );
       return;
     }
@@ -80,7 +80,7 @@ class _SosCallScreenState extends State<SosCallScreen> {
   Widget build(BuildContext context) {
     final hasPhone = widget.caregiverPhone.trim().isNotEmpty;
     final caregiverName = widget.caregiverName.trim().isEmpty
-        ? 'ผู้ดูแล'
+        ? 'คนใกล้ชิด'
         : widget.caregiverName.trim();
 
     return Scaffold(
@@ -133,7 +133,7 @@ class _SosCallScreenState extends State<SosCallScreen> {
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'ระบบกำลังติดต่อผู้ดูแลทันที',
+                        'ระบบกำลังติดต่อคนใกล้ชิดทันที',
                         style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w600,
@@ -160,7 +160,7 @@ class _SosCallScreenState extends State<SosCallScreen> {
                             ),
                             const SizedBox(height: 10),
                             SelectableText(
-                              hasPhone ? widget.caregiverPhone : 'ไม่พบเบอร์โทรผู้ดูแล',
+                              hasPhone ? widget.caregiverPhone : 'ไม่พบเบอร์โทรคนใกล้ชิด',
                               style: TextStyle(
                                 fontSize: 27,
                                 fontWeight: FontWeight.w800,
@@ -175,7 +175,7 @@ class _SosCallScreenState extends State<SosCallScreen> {
                       Text(
                         hasPhone
                             ? 'ระบบได้ส่ง SOS แจ้ง LINE และพยายามเปิดหน้าโทรให้อัตโนมัติแล้ว'
-                            : 'ส่ง SOS และแจ้ง LINE แล้ว แต่ยังไม่มีเบอร์โทรของผู้ดูแล',
+                            : 'ส่ง SOS และแจ้ง LINE แล้ว แต่ยังไม่มีเบอร์โทรของคนใกล้ชิด',
                         style: TextStyle(
                           color: Colors.grey.shade700,
                           fontSize: 14,
@@ -200,7 +200,7 @@ class _SosCallScreenState extends State<SosCallScreen> {
                               : const Icon(Icons.call_rounded),
                           label: Text(
                             hasPhone
-                                ? (_launchingCall ? 'กำลังเปิดหน้าโทร...' : 'โทรหาผู้ดูแลทันที')
+                                ? (_launchingCall ? 'กำลังเปิดหน้าโทร...' : 'โทรหาคนใกล้ชิดทันที')
                                 : 'ยังโทรไม่ได้',
                           ),
                           style: FilledButton.styleFrom(

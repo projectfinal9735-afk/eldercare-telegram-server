@@ -21,7 +21,7 @@ class _HomeElderScreenState extends State<HomeElderScreen> {
   String get _title {
     switch (_index) {
       case 0:
-        return 'ผู้ดูแล';
+        return 'คนใกล้ชิด';
       case 1:
         return 'แผนที่';
       case 2:
@@ -113,7 +113,7 @@ class _BottomActionBar extends StatelessWidget {
           children: [
             _NavActionItem(
               icon: Icons.person_add_alt_1,
-              label: 'ผู้ดูแล',
+              label: 'คนใกล้ชิด',
               selected: currentIndex == 0,
               color: color,
               onTap: () => onSelect(0),

@@ -31,11 +31,11 @@ class _HomeCaregiverScreenState extends State<HomeCaregiverScreen> {
   String get _title {
     switch (_index) {
       case 0:
-        return 'ผู้ดูแล';
+        return 'คนใกล้ชิด';
       case 1:
-        return 'แดชบอร์ดผู้ดูแล';
+        return 'แดชบอร์ดคนใกล้ชิด';
       case 2:
-        return 'ข้อมูลส่วนตัว (ผู้ดูแล)';
+        return 'ข้อมูลส่วนตัว (คนใกล้ชิด)';
       default:
         return '';
     }
@@ -71,7 +71,7 @@ class _HomeCaregiverScreenState extends State<HomeCaregiverScreen> {
         final hasAnotherCaregiver = caregiverIds.isNotEmpty && !alreadyLinkedToThisCaregiver;
 
         if (hasAnotherCaregiver) {
-          throw Exception('ผู้สูงอายุมีผู้ดูแลอยู่แล้ว กรุณาลบผู้ดูแลเดิมก่อน');
+          throw Exception('ผู้สูงอายุมีคนใกล้ชิดอยู่แล้ว กรุณาลบคนใกล้ชิดเดิมก่อน');
         }
 
         tx.set(reqRef, {
@@ -206,7 +206,7 @@ class _HomeCaregiverScreenState extends State<HomeCaregiverScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'คำขอเป็นผู้ดูแลที่รอการตอบรับ ${docs.length} รายการ',
+                      'คำขอเป็นคนใกล้ชิดที่รอการตอบรับ ${docs.length} รายการ',
                       style: const TextStyle(color: AppColors.subtleText),
                     ),
                     const SizedBox(height: 12),
@@ -407,7 +407,7 @@ class _BottomActionBar extends StatelessWidget {
           children: [
             _NavActionItem(
               icon: Icons.groups_rounded,
-              label: 'ผู้ดูแล',
+              label: 'คนใกล้ชิด',
               selected: currentIndex == 0,
               color: color,
               onTap: () => onSelect(0),
@@ -525,7 +525,7 @@ class _NavActionItemState extends State<_NavActionItem> {
   }
 }
 
-/// placeholder: รายชื่อผู้สูงอายุที่ผู้ดูแลดูแลอยู่
+/// placeholder: รายชื่อผู้สูงอายุที่คนใกล้ชิดดูแลอยู่
 class CaregiverEldersScreen extends StatefulWidget {
   const CaregiverEldersScreen({
     super.key,
@@ -652,7 +652,7 @@ class _CaregiverEldersScreenState extends State<CaregiverEldersScreen> {
       final hasAnotherCaregiver = caregiverIds.isNotEmpty && !alreadyLinkedToThisCaregiver;
 
       if (hasAnotherCaregiver) {
-        throw Exception('ผู้สูงอายุมีผู้ดูแลอยู่แล้ว กรุณาลบผู้ดูแลเดิมก่อน');
+        throw Exception('ผู้สูงอายุมีคนใกล้ชิดอยู่แล้ว กรุณาลบคนใกล้ชิดเดิมก่อน');
       }
 
       tx.set(reqRef, {
@@ -728,7 +728,7 @@ class _CaregiverEldersScreenState extends State<CaregiverEldersScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'คำขอเป็นผู้ดูแล (รอการตอบรับ)',
+              'คำขอเป็นคนใกล้ชิด (รอการตอบรับ)',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 10),
@@ -1536,7 +1536,7 @@ class _RealtimeDistanceCard extends StatelessWidget {
               value = 'ยังไม่พบตำแหน่งผู้สูงอายุ';
               valueColor = AppColors.subtleText;
             } else if (caregiverSnap.hasError) {
-              value = 'เปิดตำแหน่งผู้ดูแลเพื่อคำนวณ';
+              value = 'เปิดตำแหน่งคนใกล้ชิดเพื่อคำนวณ';
               valueColor = Colors.orange.shade800;
             } else if (!caregiverSnap.hasData) {
               value = 'กำลังคำนวณ...';
@@ -1580,7 +1580,7 @@ class _RealtimeDistanceCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'ระยะห่างผู้ดูแล-ผู้สูงอายุ',
+                          'ระยะห่างคนใกล้ชิด-ผู้สูงอายุ',
                           style: TextStyle(
                             fontSize: 15,
                             color: AppColors.subtleText,
@@ -1723,7 +1723,7 @@ class _NotificationRequestTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     const Text(
-                      'ส่งคำขอเป็นผู้ดูแลถึงคุณ',
+                      'ส่งคำขอเป็นคนใกล้ชิดถึงคุณ',
                       style: TextStyle(color: AppColors.subtleText),
                     ),
                     if (phone.isNotEmpty) ...[
@@ -2698,7 +2698,7 @@ class _ElderTileState extends State<_ElderTile> {
   }
 }
 
-/// แท็บโปรไฟล์ของผู้ดูแล (แสดงโปรไฟล์ + ปุ่มเปลี่ยนรหัสผ่านเหมือนเดิม)
+/// แท็บโปรไฟล์ของคนใกล้ชิด (แสดงโปรไฟล์ + ปุ่มเปลี่ยนรหัสผ่านเหมือนเดิม)
 class CaregiverProfileTab extends StatelessWidget {
   final VoidCallback onChangePassword;
 

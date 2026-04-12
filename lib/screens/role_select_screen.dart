@@ -69,7 +69,7 @@ class RoleSelectScreen extends StatelessWidget {
                           MaterialPageRoute(builder: (_) => const LoginCaregiverScreen()),
                         ),
                         child: const Text(
-                          'เข้าใช้งานสำหรับผู้ดูแล',
+                          'เข้าใช้งานสำหรับคนใกล้ชิด',
                           style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
                         ),
                       ),

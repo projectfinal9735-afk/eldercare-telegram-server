@@ -91,7 +91,7 @@ class _SignupCaregiverScreenState extends State<SignupCaregiverScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('สมัครสมาชิกผู้ดูแล')),
+      appBar: AppBar(title: const Text('สมัครสมาชิกคนใกล้ชิด')),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -107,7 +107,7 @@ class _SignupCaregiverScreenState extends State<SignupCaregiverScreen> {
                       const Icon(Icons.health_and_safety, size: 56, color: AppColors.primary),
                       const SizedBox(height: 16),
                       const Text(
-                        'สมัครสมาชิกผู้ดูแล',
+                        'สมัครสมาชิกคนใกล้ชิด',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800),
                       ),
