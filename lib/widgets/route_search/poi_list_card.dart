@@ -36,7 +36,7 @@ class PoiListCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     '${nearPoiType?.label ?? "สถานที่"}ใกล้ฉัน (เลือก 1 แห่ง)',
-                    style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w600),
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),

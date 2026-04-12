@@ -109,33 +109,33 @@ class _SignupCaregiverScreenState extends State<SignupCaregiverScreen> {
                       const Text(
                         'สมัครสมาชิกผู้ดูแล',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 36, fontWeight: FontWeight.w800),
+                        style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 10),
                       const Text(
                         'ออกแบบให้ปุ่มใหญ่ ตัวหนังสือชัด และกรอกข้อมูลได้ง่าย',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 23, color: AppColors.subtleText, height: 1.5),
+                        style: TextStyle(fontSize: 22, color: AppColors.subtleText, height: 1.5),
                       ),
                       const SizedBox(height: 24),
                       TextField(
                         controller: _identifier,
                         enabled: !_loading,
-                        style: const TextStyle(fontSize: 26),
+                        style: const TextStyle(fontSize: 24),
                         decoration: _decoration(hint: 'ชื่อผู้ใช้', icon: Icons.person),
                       ),
                       const SizedBox(height: 14),
                       TextField(
                         controller: _fullName,
                         enabled: !_loading,
-                        style: const TextStyle(fontSize: 26),
+                        style: const TextStyle(fontSize: 24),
                         decoration: _decoration(hint: 'ชื่อ-นามสกุล', icon: Icons.badge),
                       ),
                       const SizedBox(height: 14),
                       TextField(
                         controller: _phone,
                         enabled: !_loading,
-                        style: const TextStyle(fontSize: 26),
+                        style: const TextStyle(fontSize: 24),
                         keyboardType: TextInputType.phone,
                         inputFormatters: [
                           FilteringTextInputFormatter.digitsOnly,
@@ -150,20 +150,20 @@ class _SignupCaregiverScreenState extends State<SignupCaregiverScreen> {
                             .map(
                               (relationship) => DropdownMenuItem<String>(
                                 value: relationship,
-                                child: Text(relationship, style: const TextStyle(fontSize: 26)),
+                                child: Text(relationship, style: const TextStyle(fontSize: 24)),
                               ),
                             )
                             .toList(),
                         onChanged: _loading ? null : (value) => setState(() => _relationshipToElder = value),
                         decoration: _decoration(hint: 'คุณเป็นใครของผู้สูงอายุ', icon: Icons.family_restroom),
                         dropdownColor: AppColors.field,
-                        style: const TextStyle(fontSize: 26, color: AppColors.text),
+                        style: const TextStyle(fontSize: 24, color: AppColors.text),
                       ),
                       const SizedBox(height: 14),
                       TextField(
                         controller: _password,
                         enabled: !_loading,
-                        style: const TextStyle(fontSize: 26),
+                        style: const TextStyle(fontSize: 24),
                         obscureText: _hidePw,
                         inputFormatters: [LengthLimitingTextInputFormatter(8)],
                         decoration: _decoration(
@@ -179,7 +179,7 @@ class _SignupCaregiverScreenState extends State<SignupCaregiverScreen> {
                       TextField(
                         controller: _confirmPassword,
                         enabled: !_loading,
-                        style: const TextStyle(fontSize: 26),
+                        style: const TextStyle(fontSize: 24),
                         obscureText: _hideConfirmPw,
                         inputFormatters: [LengthLimitingTextInputFormatter(8)],
                         decoration: _decoration(

@@ -276,7 +276,7 @@ class _ElderLocationHistoryScreenState
                   child: Text(
                     'วันที่ ${_formatDate(_selectedDay)}',
                     style: const TextStyle(
-                      fontSize: 26,
+                      fontSize: 24,
                       fontWeight: FontWeight.w600,
                     ),
                   ),

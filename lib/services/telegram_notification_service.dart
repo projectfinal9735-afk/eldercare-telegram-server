@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -13,6 +14,7 @@ class TelegramNotificationService {
     'LINE_SERVER_BASE_URL',
     defaultValue: 'https://eldercare-telegram-server.onrender.com',
   );
+  static const Duration _timeout = Duration(seconds: 15);
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
@@ -24,9 +26,7 @@ class TelegramNotificationService {
     Map<String, dynamic>? extra,
   }) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      return;
-    }
+    if (uid == null) return;
 
     final elderSnap = await _db.collection('users').doc(uid).get();
     final elderData = elderSnap.data() ?? <String, dynamic>{};
@@ -59,18 +59,20 @@ class TelegramNotificationService {
       'extra': extra ?? <String, dynamic>{},
     };
 
-    final response = await http.post(
-      Uri.parse('$_baseUrl/send-alert'),
-      headers: const {'Content-Type': 'application/json'},
-      body: jsonEncode(payload),
-    );
+    final uri = Uri.parse('${_baseUrl.replaceAll(RegExp(r'/+$'), '')}/send-alert');
+    final response = await http
+        .post(
+          uri,
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode(payload),
+        )
+        .timeout(_timeout);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('LINE alert failed: ${response.statusCode} ${response.body}');
     }
   }
 }
-
 
 // Backward-compatible alias so updated LINE call sites can keep using
 // LINENotificationService while the file/class name remains unchanged.

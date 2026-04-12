@@ -152,7 +152,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             children: [
               const Text(
                 'แก้ไขข้อมูลส่วนตัว',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 18),
 
@@ -261,7 +261,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     child: Text(
                       _saving ? 'กำลังบันทึก...' : 'บันทึก',
-                      style: const TextStyle(fontSize: 26),
+                      style: const TextStyle(fontSize: 24),
                     ),
                   ),
                 ),
@@ -293,7 +293,7 @@ class _ReadOnlyTile extends StatelessWidget {
         children: [
           Text(label, style: const TextStyle(fontSize: 14, color: AppColors.text)),
           const SizedBox(height: 8),
-          Text(value, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w600)),
+          Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600)),
         ],
       ),
     );

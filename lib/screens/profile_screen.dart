@@ -66,7 +66,7 @@ class ProfileScreen extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('ไม่พบข้อมูลผู้ใช้', style: TextStyle(fontSize: 26)),
+                  const Text('ไม่พบข้อมูลผู้ใช้', style: TextStyle(fontSize: 24)),
                   const SizedBox(height: 12),
                   ElevatedButton.icon(
                     onPressed: () => _confirmEdit(context),
@@ -93,7 +93,7 @@ class ProfileScreen extends StatelessWidget {
             children: [
               const Text(
                 'ข้อมูลผู้ใช้',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
 
@@ -156,7 +156,7 @@ class ProfileScreen extends StatelessWidget {
                     padding: EdgeInsets.symmetric(vertical: 14),
                     child: Text(
                       'แก้ไขข้อมูล',
-                      style: TextStyle(fontSize: 26, fontWeight: FontWeight.w600),
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
                     ),
                   ),
                 ),
@@ -186,7 +186,7 @@ class ProfileScreen extends StatelessWidget {
                     padding: EdgeInsets.symmetric(vertical: 14),
                     child: Text(
                       'เปลี่ยนรหัสผ่าน',
-                      style: TextStyle(fontSize: 26, fontWeight: FontWeight.w600),
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
                     ),
                   ),
                 ),
@@ -221,9 +221,9 @@ class _InfoCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 26, color: AppColors.subtleText)),
+                Text(title, style: const TextStyle(fontSize: 24, color: AppColors.subtleText)),
                 const SizedBox(height: 4),
-                Text(value, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
+                Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
               ],
             ),
           ),

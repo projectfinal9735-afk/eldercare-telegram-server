@@ -126,7 +126,7 @@ class _SignupElderScreenState extends State<SignupElderScreen> {
                         Text(
                           widget.managedByCaregiver ? 'เพิ่มผู้สูงอายุ' : 'สมัครสมาชิกผู้สูงอายุ',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w800),
+                          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800),
                         ),
                         const SizedBox(height: 10),
                         Text(
@@ -134,12 +134,12 @@ class _SignupElderScreenState extends State<SignupElderScreen> {
                               ? 'กรอกข้อมูลให้ครบ เพื่อเพิ่มผู้สูงอายุเข้าสู่ระบบ'
                               : 'กรอกข้อมูลให้ครบ แล้วเริ่มใช้งานได้ทันที',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 23, color: AppColors.subtleText, height: 1.5),
+                          style: const TextStyle(fontSize: 22, color: AppColors.subtleText, height: 1.5),
                         ),
                         const SizedBox(height: 24),
                         TextFormField(
                           controller: _identifierController,
-                          style: const TextStyle(fontSize: 26),
+                          style: const TextStyle(fontSize: 24),
                           decoration: _decoration(
                             widget.managedByCaregiver ? 'ชื่อผู้ใช้ผู้สูงอายุ' : 'ชื่อผู้ใช้',
                             Icons.person,
@@ -149,7 +149,7 @@ class _SignupElderScreenState extends State<SignupElderScreen> {
                         const SizedBox(height: 14),
                         TextFormField(
                           controller: _fullNameController,
-                          style: const TextStyle(fontSize: 26),
+                          style: const TextStyle(fontSize: 24),
                           decoration: _decoration('ชื่อ-นามสกุล', Icons.badge),
                           validator: (v) => v == null || v.trim().isEmpty ? 'กรุณากรอกชื่อ' : null,
                         ),
@@ -162,14 +162,14 @@ class _SignupElderScreenState extends State<SignupElderScreen> {
                                 .map(
                                   (relationship) => DropdownMenuItem<String>(
                                     value: relationship,
-                                    child: Text(relationship, style: const TextStyle(fontSize: 26)),
+                                    child: Text(relationship, style: const TextStyle(fontSize: 24)),
                                   ),
                                 )
                                 .toList(),
                             onChanged: _loading ? null : (value) => setState(() => _relationshipToElder = value),
                             decoration: _decoration('ผู้สูงอายุท่านนี้เป็นใคร', Icons.family_restroom),
                             dropdownColor: AppColors.field,
-                            style: const TextStyle(fontSize: 26, color: AppColors.text),
+                            style: const TextStyle(fontSize: 24, color: AppColors.text),
                             validator: (value) {
                               if (!widget.managedByCaregiver) return null;
                               if (value == null || value.isEmpty) return 'กรุณาเลือกความสัมพันธ์';
@@ -180,7 +180,7 @@ class _SignupElderScreenState extends State<SignupElderScreen> {
                         ],
                         TextFormField(
                           controller: _phoneController,
-                          style: const TextStyle(fontSize: 26),
+                          style: const TextStyle(fontSize: 24),
                           keyboardType: TextInputType.phone,
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
@@ -192,7 +192,7 @@ class _SignupElderScreenState extends State<SignupElderScreen> {
                         const SizedBox(height: 14),
                         TextFormField(
                           controller: _passwordController,
-                          style: const TextStyle(fontSize: 26),
+                          style: const TextStyle(fontSize: 24),
                           obscureText: _hidePw,
                           inputFormatters: [LengthLimitingTextInputFormatter(8)],
                           decoration: _decoration(
@@ -207,7 +207,7 @@ class _SignupElderScreenState extends State<SignupElderScreen> {
                         const SizedBox(height: 14),
                         TextFormField(
                           controller: _confirmPasswordController,
-                          style: const TextStyle(fontSize: 26),
+                          style: const TextStyle(fontSize: 24),
                           obscureText: _hideConfirmPw,
                           inputFormatters: [LengthLimitingTextInputFormatter(8)],
                           decoration: _decoration(

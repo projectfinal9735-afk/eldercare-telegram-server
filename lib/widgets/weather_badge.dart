@@ -77,7 +77,7 @@ class WeatherBadge extends StatelessWidget {
                 children: [
                   Text(
                     '${weather.temperatureC.toStringAsFixed(0)}°C',
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 23),
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 22),
                   ),
                   Text(
                     weather.label,

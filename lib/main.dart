@@ -42,7 +42,7 @@ class AndroidOnlyApp extends StatelessWidget {
               'แอปนี้รองรับการใช้งานบน Android เท่านั้น\n'
               'กรุณารันบน Android Emulator หรือโทรศัพท์ Android',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 26),
+              style: TextStyle(fontSize: 24),
             ),
           ),
         ),
@@ -64,7 +64,7 @@ class MyApp extends StatelessWidget {
         final media = MediaQuery.of(context);
         return MediaQuery(
           data: media.copyWith(
-            textScaler: TextScaler.linear(media.textScaler.scale(1.08).clamp(1.0, 1.18)),
+            textScaler: TextScaler.linear(media.textScaler.scale(0.94).clamp(0.90, 1.0)),
           ),
           child: child ?? const SizedBox.shrink(),
         );

@@ -4,8 +4,11 @@ import 'package:url_launcher/url_launcher.dart';
 class TelegramConnectService {
   TelegramConnectService._();
 
-  // LINE Official Account basic ID from the current OA.
-  static const String officialAccountId = '@912autab';
+  // LINE Official Account basic ID.
+  static const String officialAccountId = String.fromEnvironment(
+    'LINE_OFFICIAL_ACCOUNT_ID',
+    defaultValue: '@912autab',
+  );
 
   // Backward-compatible alias from the previous Telegram-based implementation.
   static String get botUsername => officialAccountId;

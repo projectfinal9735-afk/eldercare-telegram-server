@@ -22,7 +22,7 @@ ButtonStyle _elderFilledButtonStyle({double radius = 22}) {
     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
     textStyle: const TextStyle(
       fontWeight: FontWeight.w700,
-      fontSize: 26,
+      fontSize: 24,
     ),
   );
 }
@@ -38,7 +38,7 @@ ButtonStyle _elderOutlinedButtonStyle({double radius = 22}) {
     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
     textStyle: const TextStyle(
       fontWeight: FontWeight.w700,
-      fontSize: 26,
+      fontSize: 24,
     ),
   );
 }
@@ -327,7 +327,7 @@ setState(() {
               const Expanded(
                 child: Text(
                   'เพิ่มผู้ดูแล',
-                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
                 ),
               ),
               IconButton(
@@ -415,7 +415,7 @@ setState(() {
           children: [
             const Text(
               'คำขอที่ส่งแล้ว (รอผู้ดูแลยอมรับ)',
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 10),
             ...docs.map((d) {
@@ -469,7 +469,7 @@ setState(() {
             const SizedBox(height: 12),
             const Text(
               'ผู้ดูแลของฉัน',
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 10),
             ...ids.map((cid) => _CaregiverTile(
@@ -846,7 +846,7 @@ class _CaregiverTileState extends State<_CaregiverTile> {
                                     'ความสัมพันธ์',
                                     style: TextStyle(
                                       color: AppColors.subtleText,
-                                      fontSize: 23,
+                                      fontSize: 22,
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
@@ -857,7 +857,7 @@ class _CaregiverTileState extends State<_CaregiverTile> {
                                         : relationshipToCaregiver,
                                     style: TextStyle(
                                       color: relationshipToCaregiver.isEmpty ? AppColors.subtleText : AppColors.text,
-                                      fontSize: 26,
+                                      fontSize: 24,
                                       fontWeight: relationshipToCaregiver.isEmpty ? FontWeight.w500 : FontWeight.w600,
                                     ),
                                   ),
@@ -879,7 +879,7 @@ class _CaregiverTileState extends State<_CaregiverTile> {
                                 foregroundColor: _elderActionColor,
                                 textStyle: const TextStyle(
                                   fontWeight: FontWeight.w700,
-                                  fontSize: 23,
+                                  fontSize: 22,
                                 ),
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                               ),

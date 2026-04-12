@@ -78,19 +78,19 @@ class _LoginCaregiverScreenState extends State<LoginCaregiverScreen> {
                       const Text(
                         'ผู้ดูแล',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 36, fontWeight: FontWeight.w800),
+                        style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 10),
                       const Text(
                         'เข้าสู่ระบบเพื่อดูแลและติดตามผู้สูงอายุ',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 26, color: AppColors.subtleText),
+                        style: TextStyle(fontSize: 24, color: AppColors.subtleText),
                       ),
                       const SizedBox(height: 24),
                       TextField(
                         controller: _idController,
                         enabled: !_loading,
-                        style: const TextStyle(fontSize: 26),
+                        style: const TextStyle(fontSize: 24),
                         decoration: const InputDecoration(
                           hintText: 'ชื่อผู้ใช้',
                           prefixIcon: Icon(Icons.person),
@@ -100,7 +100,7 @@ class _LoginCaregiverScreenState extends State<LoginCaregiverScreen> {
                       TextField(
                         controller: _pwController,
                         enabled: !_loading,
-                        style: const TextStyle(fontSize: 26),
+                        style: const TextStyle(fontSize: 24),
                         obscureText: _obscurePw,
                         inputFormatters: [LengthLimitingTextInputFormatter(8)],
                         decoration: InputDecoration(
@@ -128,7 +128,7 @@ class _LoginCaregiverScreenState extends State<LoginCaregiverScreen> {
                                 },
                           child: const Text(
                             'ยังไม่มีบัญชี? สมัครสมาชิก',
-                            style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
+                            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
                           ),
                         ),
                       ),

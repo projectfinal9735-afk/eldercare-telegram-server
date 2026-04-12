@@ -215,7 +215,7 @@ class _NavActionItemState extends State<_NavActionItem> {
                     duration: const Duration(milliseconds: 180),
                     curve: Curves.easeOutCubic,
                     style: TextStyle(
-                      fontSize: 26,
+                      fontSize: 24,
                       fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
                       color: widget.color.withOpacity(opacity),
                     ),

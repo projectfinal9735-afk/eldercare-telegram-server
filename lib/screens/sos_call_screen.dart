@@ -125,7 +125,7 @@ class _SosCallScreenState extends State<SosCallScreen> {
                       Text(
                         'ส่งสัญญาณฉุกเฉินแล้ว',
                         style: TextStyle(
-                          fontSize: 26,
+                          fontSize: 24,
                           fontWeight: FontWeight.w800,
                           color: Colors.red.shade700,
                         ),
@@ -135,7 +135,7 @@ class _SosCallScreenState extends State<SosCallScreen> {
                       const Text(
                         'ระบบกำลังติดต่อผู้ดูแลทันที',
                         style: TextStyle(
-                          fontSize: 26,
+                          fontSize: 24,
                           fontWeight: FontWeight.w600,
                         ),
                         textAlign: TextAlign.center,
@@ -153,7 +153,7 @@ class _SosCallScreenState extends State<SosCallScreen> {
                             Text(
                               caregiverName,
                               style: const TextStyle(
-                                fontSize: 26,
+                                fontSize: 24,
                                 fontWeight: FontWeight.w700,
                               ),
                               textAlign: TextAlign.center,
@@ -162,7 +162,7 @@ class _SosCallScreenState extends State<SosCallScreen> {
                             SelectableText(
                               hasPhone ? widget.caregiverPhone : 'ไม่พบเบอร์โทรผู้ดูแล',
                               style: TextStyle(
-                                fontSize: 30,
+                                fontSize: 27,
                                 fontWeight: FontWeight.w800,
                                 color: hasPhone ? AppColors.text : Colors.grey.shade600,
                               ),
@@ -208,7 +208,7 @@ class _SosCallScreenState extends State<SosCallScreen> {
                             foregroundColor: AppColors.card,
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             textStyle: const TextStyle(
-                              fontSize: 26,
+                              fontSize: 24,
                               fontWeight: FontWeight.w800,
                             ),
                             shape: RoundedRectangleBorder(

@@ -145,7 +145,7 @@ class _MiniActionButton extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 23,
+                  fontSize: 22,
                   fontWeight: FontWeight.w600,
                   color: color,
                 ),

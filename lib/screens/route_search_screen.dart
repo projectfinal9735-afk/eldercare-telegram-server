@@ -937,7 +937,7 @@ out center tags 80;
                         Expanded(
                           child: Text(
                             'ติดต่อฉุกเฉิน',
-                            style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+                            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
                           ),
                         ),
                       ],

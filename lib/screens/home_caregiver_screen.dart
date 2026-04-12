@@ -188,7 +188,7 @@ class _HomeCaregiverScreenState extends State<HomeCaregiverScreen> {
                     child: Center(
                       child: Text(
                         'ยังไม่มีคำขอใหม่',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                        style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
                       ),
                     ),
                   );
@@ -509,7 +509,7 @@ class _NavActionItemState extends State<_NavActionItem> {
                     duration: const Duration(milliseconds: 180),
                     curve: Curves.easeOutCubic,
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: 17,
                       fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
                       color: widget.color.withValues(alpha: opacity),
                     ),
@@ -729,7 +729,7 @@ class _CaregiverEldersScreenState extends State<CaregiverEldersScreen> {
           children: [
             const Text(
               'คำขอเป็นผู้ดูแล (รอการตอบรับ)',
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 10),
             ...docs.map((d) {
@@ -785,7 +785,7 @@ class _CaregiverEldersScreenState extends State<CaregiverEldersScreen> {
             ],
             const Text(
               'ผู้สูงอายุที่คุณดูแล',
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 10),
             ...ids.map((eid) => _ElderTile(
@@ -938,7 +938,7 @@ class _CaregiverDashboardSectionState extends State<_CaregiverDashboardSection> 
           children: [
             Text(
               'แดชบอร์ดสรุป',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
             ),
             SizedBox(height: 8),
             Text(
@@ -971,7 +971,7 @@ class _CaregiverDashboardSectionState extends State<_CaregiverDashboardSection> 
         children: [
           const Text(
             'แดชบอร์ดสรุป',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           const Text(
@@ -1323,7 +1323,7 @@ class _CaregiverDashboardBody extends StatelessWidget {
               children: [
                 Text(
                   data.elderName,
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                  style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
                 ),
                 if (data.phone.isNotEmpty) ...[
                   const SizedBox(height: 4),
@@ -1416,7 +1416,7 @@ class _CaregiverDashboardBody extends StatelessWidget {
                           foregroundColor: AppColors.card,
                           minimumSize: const Size(double.infinity, 56),
                           textStyle: const TextStyle(
-                            fontSize: 18,
+                            fontSize: 17,
                             fontWeight: FontWeight.w700,
                           ),
                           shape: RoundedRectangleBorder(
@@ -1436,7 +1436,7 @@ class _CaregiverDashboardBody extends StatelessWidget {
                           side: const BorderSide(color: AppColors.primary),
                           minimumSize: const Size(double.infinity, 56),
                           textStyle: const TextStyle(
-                            fontSize: 18,
+                            fontSize: 17,
                             fontWeight: FontWeight.w700,
                           ),
                           shape: RoundedRectangleBorder(
@@ -1591,7 +1591,7 @@ class _RealtimeDistanceCard extends StatelessWidget {
                         Text(
                           value,
                           style: TextStyle(
-                            fontSize: 22,
+                            fontSize: 21,
                             fontWeight: FontWeight.w800,
                             color: valueColor,
                           ),
@@ -1657,7 +1657,7 @@ class _SummaryMetricCard extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 17,
               height: 1.3,
               fontWeight: FontWeight.w800,
               color: valueColor ?? AppColors.text,
@@ -1717,7 +1717,7 @@ class _NotificationRequestTile extends StatelessWidget {
                     Text(
                       displayName,
                       style: const TextStyle(
-                        fontSize: 18,
+                        fontSize: 17,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -1744,7 +1744,7 @@ class _NotificationRequestTile extends StatelessWidget {
                           style: FilledButton.styleFrom(
                             minimumSize: const Size(double.infinity, 56),
                             textStyle: const TextStyle(
-                              fontSize: 18,
+                              fontSize: 17,
                               fontWeight: FontWeight.w700,
                             ),
                             shape: RoundedRectangleBorder(
@@ -1760,7 +1760,7 @@ class _NotificationRequestTile extends StatelessWidget {
                           style: OutlinedButton.styleFrom(
                             minimumSize: const Size(double.infinity, 56),
                             textStyle: const TextStyle(
-                              fontSize: 18,
+                              fontSize: 17,
                               fontWeight: FontWeight.w700,
                             ),
                             shape: RoundedRectangleBorder(
@@ -2435,19 +2435,19 @@ class _ElderTileState extends State<_ElderTile> {
                                   children: [
                                     Text(
                                       displayName,
-                                      style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
+                                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
                                       'ชื่อผู้ใช้: $identifier',
-                                      style: const TextStyle(color: AppColors.subtleText, fontSize: 23),
+                                      style: const TextStyle(color: AppColors.subtleText, fontSize: 22),
                                     ),
                                     if (phone.isNotEmpty)
                                       Padding(
                                         padding: const EdgeInsets.only(top: 2),
                                         child: Text(
                                           'โทร: $phone',
-                                          style: const TextStyle(color: AppColors.subtleText, fontSize: 23),
+                                          style: const TextStyle(color: AppColors.subtleText, fontSize: 22),
                                         ),
                                       ),
                                     const SizedBox(height: 6),
@@ -2561,7 +2561,7 @@ class _ElderTileState extends State<_ElderTile> {
                                     padding: const EdgeInsets.only(top: 4),
                                     child: Text(
                                       'ศูนย์กลาง: ${centerLat.toStringAsFixed(5)}, ${centerLng.toStringAsFixed(5)}',
-                                      style: const TextStyle(color: AppColors.subtleText, fontSize: 23),
+                                      style: const TextStyle(color: AppColors.subtleText, fontSize: 22),
                                     ),
                                   ),
                               ],
@@ -2729,6 +2729,18 @@ class CaregiverProfileTab extends StatelessWidget {
     );
   }
 
+  Future<void> _copyLinkCommand(BuildContext context) async {
+    final message = TelegramConnectService.buildLinkMessage();
+    if (message == null) {
+      _showSnack(context, 'ไม่พบผู้ใช้งานปัจจุบัน');
+      return;
+    }
+
+    await Clipboard.setData(ClipboardData(text: message));
+    if (!context.mounted) return;
+    _showSnack(context, 'คัดลอกคำสั่งเชื่อม LINE แล้ว');
+  }
+
   Future<void> _disconnectTelegram(BuildContext context) async {
     final me = FirebaseAuth.instance.currentUser;
     if (me == null) {
@@ -2762,6 +2774,9 @@ class CaregiverProfileTab extends StatelessWidget {
     await FirebaseFirestore.instance.collection('users').doc(me.uid).set({
       'lineConnected': false,
       'lineUserId': FieldValue.delete(),
+      'lineDisplayName': FieldValue.delete(),
+      'lineLanguage': FieldValue.delete(),
+      'linePictureUrl': FieldValue.delete(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
 
@@ -2785,6 +2800,8 @@ class CaregiverProfileTab extends StatelessWidget {
                 final data = snap.data?.data() ?? const <String, dynamic>{};
                 final connected = (data['lineConnected'] ?? false) == true;
                 final chatId = (data['lineUserId'] ?? '').toString();
+                final lineDisplayName = (data['lineDisplayName'] ?? '').toString();
+                final linkMessage = TelegramConnectService.buildLinkMessage() ?? 'LINK caregiver_<uid>';
 
                 return SafeArea(
                   top: false,
@@ -2805,7 +2822,7 @@ class CaregiverProfileTab extends StatelessWidget {
                             children: [
                               const Text(
                                 'การแจ้งเตือน LINE',
-                                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
+                                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
                               ),
                               const SizedBox(height: 6),
                               Text(
@@ -2814,6 +2831,36 @@ class CaregiverProfileTab extends StatelessWidget {
                                     : 'ยังไม่ได้เชื่อมต่อ LINE',
                                 style: TextStyle(
                                   color: connected ? Colors.green.shade700 : AppColors.subtleText,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.background,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'LINE OA: ${TelegramConnectService.officialAccountId}',
+                                      style: const TextStyle(fontWeight: FontWeight.w700),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    SelectableText(
+                                      'ข้อความเชื่อม: $linkMessage',
+                                      style: const TextStyle(color: AppColors.subtleText),
+                                    ),
+                                    if (connected && lineDisplayName.isNotEmpty) ...[
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        'ชื่อบน LINE: $lineDisplayName',
+                                        style: const TextStyle(color: AppColors.subtleText),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ),
                               const SizedBox(height: 10),

@@ -78,19 +78,19 @@ class _LoginElderScreenState extends State<LoginElderScreen> {
                       const Text(
                         'ผู้สูงอายุ',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 36, fontWeight: FontWeight.w800),
+                        style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 10),
                       const Text(
                         'กรอกชื่อผู้ใช้และรหัสผ่าน เพื่อเข้าใช้งาน',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 26, color: AppColors.subtleText),
+                        style: TextStyle(fontSize: 24, color: AppColors.subtleText),
                       ),
                       const SizedBox(height: 24),
                       TextField(
                         controller: _idController,
                         enabled: !_loading,
-                        style: const TextStyle(fontSize: 26),
+                        style: const TextStyle(fontSize: 24),
                         decoration: const InputDecoration(
                           hintText: 'ชื่อผู้ใช้',
                           prefixIcon: Icon(Icons.person),
@@ -100,7 +100,7 @@ class _LoginElderScreenState extends State<LoginElderScreen> {
                       TextField(
                         controller: _pwController,
                         enabled: !_loading,
-                        style: const TextStyle(fontSize: 26),
+                        style: const TextStyle(fontSize: 24),
                         obscureText: _obscurePw,
                         inputFormatters: [LengthLimitingTextInputFormatter(8)],
                         decoration: InputDecoration(

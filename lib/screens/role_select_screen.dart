@@ -37,7 +37,7 @@ class RoleSelectScreen extends StatelessWidget {
                         'เดินทางสบาย',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 36,
+                          fontSize: 32,
                           height: 1.2,
                           fontWeight: FontWeight.w800,
                           color: AppColors.text,
@@ -47,7 +47,7 @@ class RoleSelectScreen extends StatelessWidget {
                       const Text(
                         'เลือกประเภทผู้ใช้งาน เพื่อเข้าสู่ระบบได้ง่ายและชัดเจน',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 23, color: AppColors.subtleText, height: 1.5),
+                        style: TextStyle(fontSize: 22, color: AppColors.subtleText, height: 1.5),
                       ),
                       const SizedBox(height: 28),
                       PrimaryButton(
@@ -70,7 +70,7 @@ class RoleSelectScreen extends StatelessWidget {
                         ),
                         child: const Text(
                           'เข้าใช้งานสำหรับผู้ดูแล',
-                          style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
+                          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
                         ),
                       ),
                     ],

@@ -30,7 +30,7 @@ class RouteSummaryCard extends StatelessWidget {
                 '$title • $distanceText • $durationText',
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 23),
+                style: const TextStyle(fontSize: 22),
               ),
             ),
           ],

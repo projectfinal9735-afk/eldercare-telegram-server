@@ -104,7 +104,7 @@ class LinkRow extends StatelessWidget {
           onPressed: onLeft,
           child: Text(
             leftText,
-            style: const TextStyle(color: AppColors.primary, fontSize: 26),
+            style: const TextStyle(color: AppColors.primary, fontSize: 24),
           ),
         ),
         const Spacer(),
@@ -114,7 +114,7 @@ class LinkRow extends StatelessWidget {
             rightText,
             style: const TextStyle(
               color: AppColors.primary,
-              fontSize: 26,
+              fontSize: 24,
               fontWeight: FontWeight.bold,
             ),
           ),

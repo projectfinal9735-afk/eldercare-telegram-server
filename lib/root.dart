@@ -125,7 +125,7 @@ class _AppLoadingScreenState extends State<_AppLoadingScreen>
                 widget.message,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 23,
+                  fontSize: 22,
                   fontWeight: FontWeight.w600,
                   color: AppColors.text,
                 ),
@@ -135,7 +135,7 @@ class _AppLoadingScreenState extends State<_AppLoadingScreen>
                 'โปรดรอสักครู่เพื่อให้ข้อมูลพร้อมใช้งาน',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 23,
+                  fontSize: 22,
                   color: AppColors.subtleText,
                 ),
               ),

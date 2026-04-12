@@ -57,7 +57,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             children: [
               const Text(
                 'กรอกชื่อผู้ใช้หรือเบอร์โทรศัพท์ที่ใช้สมัคร ระบบจะส่งลิงก์รีเซ็ตรหัสผ่านไปยังอีเมลของบัญชีนั้น',
-                style: TextStyle(fontSize: 23),
+                style: TextStyle(fontSize: 22),
               ),
               const SizedBox(height: 20),
               TextField(
