@@ -9,6 +9,8 @@ class AuthService {
   AuthService._();
   static final AuthService instance = AuthService._();
 
+  static final Map<String, dynamic> _profileCache = <String, dynamic>{};
+
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
@@ -94,7 +96,6 @@ class AuthService {
       rethrow;
     }
   }
-
 
   Future<void> registerElderByCaregiver({
     required String identifier,
@@ -243,8 +244,41 @@ class AuthService {
     final user = _auth.currentUser;
     if (user == null) return null;
 
-    final snap = await _db.collection('users').doc(user.uid).get();
-    return snap.data();
+    final doc = _db.collection('users').doc(user.uid);
+
+    Future<Map<String, dynamic>?> readFromCache() async {
+      try {
+        final cached = await doc.get(const GetOptions(source: Source.cache));
+        final data = cached.data();
+        if (data != null) {
+          _profileCache
+            ..clear()
+            ..addAll(data);
+          return data;
+        }
+      } catch (_) {}
+      if (_profileCache.isNotEmpty) {
+        return Map<String, dynamic>.from(_profileCache);
+      }
+      return null;
+    }
+
+    try {
+      final snap = await doc.get(const GetOptions(source: Source.server));
+      final data = snap.data();
+      if (data != null) {
+        _profileCache
+          ..clear()
+          ..addAll(data);
+      }
+      return data;
+    } catch (_) {
+      final cached = await readFromCache();
+      if (cached != null) {
+        return cached;
+      }
+      rethrow;
+    }
   }
 
   Future<void> updateProfile(Map<String, dynamic> data) async {
@@ -257,11 +291,18 @@ class AuthService {
       );
     }
 
-    await _db.collection('users').doc(user.uid).update({
+    final payload = {
       ...data,
       'updatedAt': FieldValue.serverTimestamp(),
-    });
+    };
+    await _db.collection('users').doc(user.uid).update(payload);
+    _profileCache
+      ..clear()
+      ..addAll(payload);
   }
 
-  Future<void> signOut() => _auth.signOut();
+  Future<void> signOut() {
+    _profileCache.clear();
+    return _auth.signOut();
+  }
 }

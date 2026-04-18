@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 
 import 'abnormal_alert_service.dart';
 
@@ -25,6 +26,61 @@ class LiveLocationService {
   DateTime? _lastHistoryAt;
   DateTime? _lastPrunedAt;
   bool _hasActiveSharingSession = false;
+  LatLng? _lastKnownPoint;
+  DateTime? _lastSuccessfulSyncAt;
+  String? _lastSyncMessage;
+  bool _lastSyncHadError = false;
+
+  LatLng? get lastKnownPoint => _lastKnownPoint;
+  DateTime? get lastSuccessfulSyncAt => _lastSuccessfulSyncAt;
+  String? get lastSyncMessage => _lastSyncMessage;
+  bool get lastSyncHadError => _lastSyncHadError;
+
+
+  Future<LatLng?> restoreLastKnownLocation({String? userId}) async {
+    final resolvedUserId = userId ?? FirebaseAuth.instance.currentUser?.uid;
+    if (resolvedUserId == null || resolvedUserId.isEmpty) {
+      return _lastKnownPoint;
+    }
+
+    final doc = _db.collection('live_locations').doc(resolvedUserId);
+
+    Map<String, dynamic>? parse(DocumentSnapshot<Map<String, dynamic>> snap) {
+      final data = snap.data();
+      if (data == null) return null;
+      final lat = (data['lat'] as num?)?.toDouble();
+      final lng = (data['lng'] as num?)?.toDouble();
+      if (lat == null || lng == null) return null;
+      return <String, dynamic>{'lat': lat, 'lng': lng};
+    }
+
+    try {
+      final server = await doc.get(const GetOptions(source: Source.server));
+      final data = parse(server);
+      if (data != null) {
+        return _applyLastKnownLocation(data['lat'] as double, data['lng'] as double, fromCache: false);
+      }
+    } catch (_) {}
+
+    try {
+      final cached = await doc.get(const GetOptions(source: Source.cache));
+      final data = parse(cached);
+      if (data != null) {
+        return _applyLastKnownLocation(data['lat'] as double, data['lng'] as double, fromCache: true);
+      }
+    } catch (_) {}
+
+    return _lastKnownPoint;
+  }
+
+  LatLng _applyLastKnownLocation(double lat, double lng, {required bool fromCache}) {
+    _lastKnownPoint = LatLng(lat, lng);
+    _lastSyncHadError = false;
+    _lastSyncMessage = fromCache
+        ? 'ใช้ตำแหน่งล่าสุดจากแคชบนเครื่อง'
+        : 'โหลดตำแหน่งล่าสุดจากเซิร์ฟเวอร์แล้ว';
+    return _lastKnownPoint!;
+  }
 
   Future<void> updateMyLocation(
     Position position, {
@@ -34,36 +90,49 @@ class LiveLocationService {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
+    _lastKnownPoint = LatLng(position.latitude, position.longitude);
+
     if (!force && !_shouldWrite(position)) {
+      _lastSyncHadError = false;
+      _lastSyncMessage = 'รอซิงก์เมื่อมีการเคลื่อนที่หรือครบเวลา';
       return;
     }
 
-    await _db.collection('live_locations').doc(user.uid).set({
-      'elderId': user.uid,
-      'elderName': elderName ?? '',
-      'lat': position.latitude,
-      'lng': position.longitude,
-      'accuracy': position.accuracy,
-      'isSharing': true,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    try {
+      await _db.collection('live_locations').doc(user.uid).set({
+        'elderId': user.uid,
+        'elderName': elderName ?? '',
+        'lat': position.latitude,
+        'lng': position.longitude,
+        'accuracy': position.accuracy,
+        'isSharing': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
-    _lastWrittenPosition = position;
-    _lastWrittenAt = DateTime.now();
-    _hasActiveSharingSession = true;
+      _lastWrittenPosition = position;
+      _lastWrittenAt = DateTime.now();
+      _hasActiveSharingSession = true;
+      _lastSuccessfulSyncAt = DateTime.now();
+      _lastSyncHadError = false;
+      _lastSyncMessage = 'ซิงก์ตำแหน่งล่าสุดแล้ว';
 
-    await _saveHistoryIfNeeded(
-      userId: user.uid,
-      position: position,
-      elderName: elderName,
-      force: force,
-    );
+      await _saveHistoryIfNeeded(
+        userId: user.uid,
+        position: position,
+        elderName: elderName,
+        force: force,
+      );
 
-    await AbnormalAlertService.instance.onLocationUpdated(
-      lat: position.latitude,
-      lng: position.longitude,
-      elderName: elderName,
-    );
+      await AbnormalAlertService.instance.onLocationUpdated(
+        lat: position.latitude,
+        lng: position.longitude,
+        elderName: elderName,
+      );
+    } catch (_) {
+      _lastSyncHadError = true;
+      _lastSyncMessage = 'บันทึกตำแหน่งไม่สำเร็จ จะลองใหม่อัตโนมัติเมื่อมีสัญญาณ';
+      rethrow;
+    }
   }
 
   bool _shouldWrite(Position position) {
@@ -139,6 +208,8 @@ class LiveLocationService {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
+    _lastKnownPoint = LatLng(lat, lng);
+
     await _writeHistoryPoint(
       userId: user.uid,
       lat: lat,
@@ -207,15 +278,22 @@ class LiveLocationService {
 
     await _db.collection('live_locations').doc(user.uid).set({
       'elderId': user.uid,
+      if (lat != null) 'lat': lat,
+      if (lng != null) 'lng': lng,
       'isSharing': false,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
 
+    if (lat != null && lng != null) {
+      _lastKnownPoint = LatLng(lat, lng);
+    }
     _hasActiveSharingSession = false;
     _lastWrittenAt = null;
     _lastWrittenPosition = null;
     _lastHistoryAt = null;
     _lastHistoryPosition = null;
+    _lastSyncHadError = false;
+    _lastSyncMessage = 'หยุดแชร์ตำแหน่งสดแล้ว';
 
     await AbnormalAlertService.instance.onSharingStopped(
       lat: lat,

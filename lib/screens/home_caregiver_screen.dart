@@ -10,6 +10,7 @@ import 'package:latlong2/latlong.dart';
 import 'change_password_screen.dart';
 import '../theme/app_colors.dart';
 import '../services/weather_service.dart';
+import '../services/app_error.dart';
 import '../services/location_service.dart';
 import 'elder_location_history_screen.dart';
 import '../root.dart';
@@ -544,6 +545,48 @@ class _CaregiverEldersScreenState extends State<CaregiverEldersScreen> {
 
   int _refreshVersion = 0;
   bool _isRefreshing = false;
+  Map<String, dynamic>? _cachedCaregiverData;
+  List<String> _cachedElderIds = const <String>[];
+  String? _caregiverFallbackNote;
+  bool _usingCachedCaregiverData = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _primeCachedCaregiverData();
+  }
+
+  List<String> _extractElderIds(Map<String, dynamic> data) {
+    return (data['elderIds'] as List?)?.cast<String>() ?? const <String>[];
+  }
+
+  void _storeCaregiverCache(
+    Map<String, dynamic> data, {
+    bool usingCache = false,
+    String? note,
+  }) {
+    _cachedCaregiverData = Map<String, dynamic>.from(data);
+    _cachedElderIds = _extractElderIds(data);
+    _usingCachedCaregiverData = usingCache;
+    _caregiverFallbackNote = note;
+  }
+
+  Future<void> _primeCachedCaregiverData() async {
+    final me = _me;
+    if (me == null) return;
+    try {
+      final cached = await _db.collection('users').doc(me.uid).get(const GetOptions(source: Source.cache));
+      final data = cached.data();
+      if (data == null || !mounted) return;
+      setState(() {
+        _storeCaregiverCache(
+          data,
+          usingCache: true,
+          note: _extractElderIds(data).isEmpty ? null : 'กำลังแสดงรายชื่อผู้สูงอายุจากข้อมูลล่าสุดที่เก็บไว้บนเครื่อง',
+        );
+      });
+    } catch (_) {}
+  }
 
   Future<void> _refreshCaregiverData({bool showMessage = false}) async {
     if (_isRefreshing) return;
@@ -552,7 +595,7 @@ class _CaregiverEldersScreenState extends State<CaregiverEldersScreen> {
     try {
       final me = _me;
       if (me != null) {
-        await Future.wait([
+        final results = await Future.wait([
           _db.collection('users').doc(me.uid).get(const GetOptions(source: Source.server)),
           _db
               .collection('caregiver_requests')
@@ -560,6 +603,13 @@ class _CaregiverEldersScreenState extends State<CaregiverEldersScreen> {
               .where('status', isEqualTo: 'pending')
               .get(const GetOptions(source: Source.server)),
         ]);
+        final caregiverSnap = results.first as DocumentSnapshot<Map<String, dynamic>>;
+        final data = caregiverSnap.data();
+        if (data != null && mounted) {
+          setState(() {
+            _storeCaregiverCache(data, usingCache: false, note: null);
+          });
+        }
       }
 
       await Future<void>.delayed(const Duration(milliseconds: 250));
@@ -567,6 +617,19 @@ class _CaregiverEldersScreenState extends State<CaregiverEldersScreen> {
       setState(() => _refreshVersion++);
       if (showMessage) {
         _snack('รีเฟรชข้อมูลล่าสุดแล้ว');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      if (_cachedCaregiverData != null) {
+        setState(() {
+          _usingCachedCaregiverData = true;
+          _caregiverFallbackNote = 'รีเฟรชไม่สำเร็จ กำลังใช้รายชื่อผู้สูงอายุจากแคชบนเครื่อง';
+        });
+        if (showMessage) {
+          _snack(_caregiverFallbackNote!);
+        }
+      } else {
+        _snack(AppError.message(e));
       }
     } finally {
       _isRefreshing = false;
@@ -756,48 +819,113 @@ class _CaregiverEldersScreenState extends State<CaregiverEldersScreen> {
     }
 
     final caregiverDoc = _db.collection('users').doc(me.uid);
-    return StreamBuilder<DocumentSnapshot>(
-      stream: caregiverDoc.snapshots(),
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: caregiverDoc.snapshots(includeMetadataChanges: true),
       builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
+        if (snap.hasData) {
+          final freshData = snap.data?.data();
+          if (freshData != null) {
+            final fromCache = snap.data?.metadata.isFromCache ?? false;
+            _storeCaregiverCache(
+              freshData,
+              usingCache: fromCache,
+              note: fromCache && _extractElderIds(freshData).isNotEmpty
+                  ? 'กำลังแสดงรายชื่อผู้สูงอายุจากแคชบนเครื่อง'
+                  : null,
+            );
+          }
+        }
+
+        if (snap.connectionState == ConnectionState.waiting && snap.data == null) {
+          if (_cachedCaregiverData != null) {
+            return _buildAcceptedEldersContent(
+              _cachedElderIds,
+              helperNote: _caregiverFallbackNote ?? 'กำลังแสดงข้อมูลที่บันทึกไว้ล่าสุดระหว่างรอเชื่อมต่อ',
+            );
+          }
           return const Center(child: CircularProgressIndicator());
         }
-        final data = (snap.data?.data() as Map<String, dynamic>?) ?? {};
-        final ids = (data['elderIds'] as List?)?.cast<String>() ?? const <String>[];
 
-        if (ids.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 14),
-            child: Text(
-              'ยังไม่มีผู้สูงอายุที่คุณดูแล\nเมื่อ Elder ส่งคำขอมา คุณสามารถกดยอมรับได้ที่ด้านบน',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.subtleText),
-            ),
+        if (snap.hasError && _cachedCaregiverData != null) {
+          return _buildAcceptedEldersContent(
+            _cachedElderIds,
+            helperNote: 'โหลดรายชื่อจากเซิร์ฟเวอร์ไม่สำเร็จ กำลังใช้ข้อมูลล่าสุดที่เก็บไว้บนเครื่อง',
           );
         }
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (widget.showDashboard) ...[
-              _CaregiverDashboardSection(elderIds: ids),
-              const SizedBox(height: 18),
-            ],
-            const Text(
-              'ผู้สูงอายุที่คุณดูแล',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 10),
-            ...ids.map((eid) => _ElderTile(
-                  key: ValueKey('elder-$eid-$_refreshVersion'),
-                  elderUid: eid,
-                  onRemove: () => caregiverRemoveElder(eid),
-                )),
-          ],
+        final ids = snap.data?.data() != null ? _extractElderIds(snap.data!.data()!) : _cachedElderIds;
+        return _buildAcceptedEldersContent(
+          ids,
+          helperNote: _usingCachedCaregiverData ? _caregiverFallbackNote : null,
         );
       },
     );
   }
+
+  Widget _buildAcceptedEldersContent(
+    List<String> ids, {
+    String? helperNote,
+  }) {
+    if (ids.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        child: Column(
+          children: [
+            const Text(
+              'ยังไม่มีผู้สูงอายุที่คุณดูแล\nเมื่อ Elder ส่งคำขอมา คุณสามารถกดยอมรับได้ที่ด้านบน',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.subtleText),
+            ),
+            if (helperNote != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                helperNote,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.subtleText),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (helperNote != null) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Text(
+              helperNote,
+              style: const TextStyle(color: AppColors.subtleText),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        if (widget.showDashboard) ...[
+          _CaregiverDashboardSection(elderIds: ids),
+          const SizedBox(height: 18),
+        ],
+        const Text(
+          'ผู้สูงอายุที่คุณดูแล',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 10),
+        ...ids.map((eid) => _ElderTile(
+              key: ValueKey('elder-$eid-$_refreshVersion'),
+              elderUid: eid,
+              onRemove: () => caregiverRemoveElder(eid),
+            )),
+      ],
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {

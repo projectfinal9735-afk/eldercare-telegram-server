@@ -12,7 +12,7 @@ class LocationService {
   Future<LatLng> getCurrentLatLng() async {
     final enabled = await Geolocator.isLocationServiceEnabled();
     if (!enabled) {
-      throw Exception('กรุณาเปิด GPS ก่อน');
+      throw Exception('กรุณาเปิด GPS หรือบริการระบุตำแหน่งก่อน');
     }
 
     var permission = await Geolocator.checkPermission();
@@ -23,11 +23,12 @@ class LocationService {
       throw Exception('ไม่ได้รับอนุญาตให้ใช้ตำแหน่ง');
     }
     if (permission == LocationPermission.deniedForever) {
-      throw Exception('ไม่ได้รับอนุญาตให้ใช้ตำแหน่ง');
+      throw Exception('ปิดสิทธิ์ตำแหน่งแบบถาวร กรุณาไปที่การตั้งค่าแล้วอนุญาตตำแหน่ง');
     }
 
     final pos = await Geolocator.getCurrentPosition(
       desiredAccuracy: LocationAccuracy.high,
+      timeLimit: const Duration(seconds: 12),
     );
     return LatLng(pos.latitude, pos.longitude);
   }
@@ -50,6 +51,8 @@ class LocationService {
     await _positionSub?.cancel();
     _positionSub = null;
   }
+
+  Future<bool> openAppSettings() => Geolocator.openAppSettings();
 
   bool get isTracking => _positionSub != null;
 }

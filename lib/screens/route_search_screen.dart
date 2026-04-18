@@ -15,6 +15,7 @@ import '../models/live_location_model.dart';
 import '../models/sos_request_model.dart';
 import '../models/user_model.dart';
 import '../services/app_error.dart';
+import '../services/auth_service.dart';
 import '../services/live_location_service.dart';
 import '../services/location_service.dart';
 import '../services/poi_service.dart';
@@ -59,6 +60,8 @@ class _RouteSearchScreenState extends State<RouteSearchScreen> {
   String? _latestLiveLocationLabel;
   String? _inlineMessage;
   bool _inlineIsError = false;
+  String? _inlineActionLabel;
+  VoidCallback? _inlineAction;
   WeatherInfo? _weatherInfo;
   bool _loadingWeather = false;
 
@@ -79,6 +82,7 @@ class _RouteSearchScreenState extends State<RouteSearchScreen> {
   bool _fabExpanded = false;
   bool _sharingLiveLocation = false;
   String? _elderFullName;
+  String? _liveSyncStatus;
   Timer? _inlineMessageTimer;
 
   static const List<Map<String, String>> _emergencyContacts = [
@@ -120,20 +124,29 @@ class _RouteSearchScreenState extends State<RouteSearchScreen> {
 
   Future<void> _primeMyLocation() async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        final profile = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-        final data = profile.data();
-        if (data != null && mounted) {
-          _elderFullName = UserModel.fromMap(data).fullName;
-        }
+      final profile = await AuthService.instance.getMyProfile();
+      if (profile != null && mounted) {
+        _elderFullName = UserModel.fromMap(profile).fullName;
       }
       final p = await LocationService.instance.getCurrentLatLng();
       if (!mounted) return;
-      setState(() => _currentLocation = p);
+      setState(() {
+        _currentLocation = p;
+        _liveSyncStatus = LiveLocationService.instance.lastSyncMessage;
+      });
       unawaited(_refreshWeather(p));
-    } catch (_) {
-      // ปล่อยให้กดตำแหน่งเองภายหลัง
+    } catch (e) {
+      final cached = await LiveLocationService.instance.restoreLastKnownLocation();
+      if (!mounted) return;
+      if (cached != null) {
+        setState(() {
+          _currentLocation = cached;
+          _liveSyncStatus = LiveLocationService.instance.lastSyncMessage;
+        });
+        _showInlineMessage('ใช้พิกัดล่าสุดที่เคยบันทึกไว้ชั่วคราว', isError: false);
+      } else {
+        _showInlineMessage(AppError.message(e), isError: true, actionLabel: 'ลองใหม่', onAction: _primeMyLocation);
+      }
     }
   }
 
@@ -332,7 +345,7 @@ class _RouteSearchScreenState extends State<RouteSearchScreen> {
       unawaited(_refreshWeather(p));
       return p;
     } catch (e) {
-      _showInlineMessage(AppError.message(e), isError: true);
+      _showInlineMessage(AppError.message(e), isError: true, actionLabel: 'ลองใหม่', onAction: _goToMyLocation);
       _showSnack(AppError.message(e));
       return null;
     } finally {
@@ -359,7 +372,7 @@ class _RouteSearchScreenState extends State<RouteSearchScreen> {
       if (!mounted) return;
       setState(() => _weatherInfo = weather);
     } catch (e) {
-      _showInlineMessage(AppError.message(e), isError: true);
+      _showInlineMessage(AppError.message(e), isError: true, actionLabel: 'ลองใหม่', onAction: () => _refreshWeather(target));
     } finally {
       if (mounted) {
         setState(() => _loadingWeather = false);
@@ -382,7 +395,10 @@ class _RouteSearchScreenState extends State<RouteSearchScreen> {
         elderName: _elderFullName,
       );
       if (!mounted) return;
-      setState(() => _sharingLiveLocation = false);
+      setState(() {
+        _sharingLiveLocation = false;
+        _liveSyncStatus = LiveLocationService.instance.lastSyncMessage;
+      });
       _showInlineMessage('หยุดแชร์ตำแหน่งสดแล้ว');
       return;
     }
@@ -390,32 +406,52 @@ class _RouteSearchScreenState extends State<RouteSearchScreen> {
     try {
       var notifiedStart = false;
       await LocationService.instance.startTracking(onPosition: (position) async {
-        await LiveLocationService.instance.updateMyLocation(
-          position,
-          elderName: _elderFullName,
-        );
-        if (!notifiedStart) {
-          notifiedStart = true;
-          await _notifyCaregivers(
-            type: 'live_started',
-            title: '📍 เริ่มแชร์ตำแหน่งสด',
-            body: _elderFullName?.trim().isNotEmpty == true
-                ? '${_elderFullName!} เริ่มแชร์ตำแหน่งสดแล้ว'
-                : 'ผู้สูงอายุเริ่มแชร์ตำแหน่งสดแล้ว',
-            point: LatLng(position.latitude, position.longitude),
+        try {
+          await LiveLocationService.instance.updateMyLocation(
+            position,
+            elderName: _elderFullName,
           );
-        }
-        if (mounted) {
-          setState(() {
-            _currentLocation = LatLng(position.latitude, position.longitude);
-          });
+          if (!notifiedStart) {
+            notifiedStart = true;
+            await _notifyCaregivers(
+              type: 'live_started',
+              title: '📍 เริ่มแชร์ตำแหน่งสด',
+              body: _elderFullName?.trim().isNotEmpty == true
+                  ? '${_elderFullName!} เริ่มแชร์ตำแหน่งสดแล้ว'
+                  : 'ผู้สูงอายุเริ่มแชร์ตำแหน่งสดแล้ว',
+              point: LatLng(position.latitude, position.longitude),
+            );
+          }
+          if (mounted) {
+            setState(() {
+              _currentLocation = LatLng(position.latitude, position.longitude);
+              _liveSyncStatus = LiveLocationService.instance.lastSyncMessage;
+            });
+          }
+        } catch (error) {
+          if (!mounted) return;
+          setState(() => _liveSyncStatus = LiveLocationService.instance.lastSyncMessage ?? AppError.message(error));
+          _showInlineMessage(
+            AppError.message(error),
+            isError: true,
+            actionLabel: 'ลองใหม่',
+            onAction: _toggleLiveLocation,
+          );
         }
       });
       if (!mounted) return;
-      setState(() => _sharingLiveLocation = true);
+      setState(() {
+        _sharingLiveLocation = true;
+        _liveSyncStatus = 'กำลังเริ่มแชร์ตำแหน่งสด';
+      });
       _showInlineMessage('กำลังแชร์ตำแหน่งสดให้คนใกล้ชิดเห็น', isError: false);
     } catch (e) {
-      _showInlineMessage(AppError.message(e), isError: true);
+      _showInlineMessage(
+        AppError.message(e),
+        isError: true,
+        actionLabel: 'ลองใหม่',
+        onAction: _toggleLiveLocation,
+      );
       _showSnack(AppError.message(e));
     }
   }
@@ -444,7 +480,7 @@ class _RouteSearchScreenState extends State<RouteSearchScreen> {
       final message = e is TimeoutException
           ? e.message ?? 'ระบบใช้เวลานานเกินไป กรุณาลองใหม่'
           : AppError.message(e);
-      _showInlineMessage(message, isError: true);
+      _showInlineMessage(message, isError: true, actionLabel: 'ลองใหม่', onAction: () => _handlePoiSearch(type));
       _showSnack(message);
     }
   }
@@ -636,6 +672,9 @@ out center tags 80;
       } else {
         _showInlineMessage('ไม่พบเส้นทาง', isError: true);
       }
+    } catch (e) {
+      _showInlineMessage(AppError.message(e), isError: true, actionLabel: 'ลองใหม่', onAction: () => _fetchRoute(from, to));
+      _showSnack(AppError.message(e));
     } finally {
       if (mounted) setState(() => _loadingRoute = false);
     }
@@ -691,7 +730,12 @@ out center tags 80;
     }
   }
 
-  void _showInlineMessage(String msg, {bool isError = false}) {
+  void _showInlineMessage(
+    String msg, {
+    bool isError = false,
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
     if (!mounted) return;
 
     _inlineMessageTimer?.cancel();
@@ -699,12 +743,16 @@ out center tags 80;
     setState(() {
       _inlineMessage = msg;
       _inlineIsError = isError;
+      _inlineActionLabel = actionLabel;
+      _inlineAction = onAction;
     });
 
-    _inlineMessageTimer = Timer(const Duration(seconds: 2), () {
+    _inlineMessageTimer = Timer(const Duration(seconds: 5), () {
       if (!mounted) return;
       setState(() {
         _inlineMessage = null;
+        _inlineActionLabel = null;
+        _inlineAction = null;
       });
     });
   }
@@ -1050,6 +1098,8 @@ out center tags 80;
                   child: AppStateCard(
                     icon: _inlineIsError ? Icons.error_outline : Icons.info_outline,
                     message: _inlineMessage!,
+                    actionLabel: _inlineActionLabel,
+                    onAction: _inlineAction,
                   ),
                 ),
               if (_weatherInfo != null || true)
@@ -1107,7 +1157,13 @@ out center tags 80;
               else
                 AppStateCard(
                   icon: _sharingLiveLocation ? Icons.my_location : Icons.location_searching,
-                  message: _sharingLiveLocation ? 'กำลังแชร์ตำแหน่งสดให้คนใกล้ชิด' : 'ยังไม่ได้เปิดแชร์ตำแหน่งสด',
+                  message: _sharingLiveLocation
+                      ? ((_liveSyncStatus?.trim().isNotEmpty ?? false)
+                          ? 'กำลังแชร์ตำแหน่งสด • $_liveSyncStatus'
+                          : 'กำลังแชร์ตำแหน่งสดให้คนใกล้ชิด')
+                      : ((_liveSyncStatus?.trim().isNotEmpty ?? false)
+                          ? _liveSyncStatus!
+                          : 'ยังไม่ได้เปิดแชร์ตำแหน่งสด'),
                   actionLabel: _sharingLiveLocation ? 'หยุดแชร์' : 'เริ่มแชร์',
                   onAction: _toggleLiveLocation,
                 ),
